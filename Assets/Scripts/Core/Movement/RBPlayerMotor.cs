@@ -11,12 +11,13 @@ public class RBPlayerMotor : MonoBehaviour
 {
     [Header("调参配置")]
     [SerializeField] private MovementTuningSO _tuning;
-    [SerializeField] private Animator _animator; // Debug临时实现
+    [SerializeField] private Animator _animator; // Debug临时实现    
 
     [Header("地面检测")]
     [SerializeField] private LayerMask _groundLayer = -1;
     [SerializeField] private float _groundCheckRadius = 0.3f;
     [SerializeField] private float _groundCheckDistance = 0.1f;
+    [SerializeField] private float _groundSnapOffset = 0.02f; // 微小的离地偏移，防止穿模
 
     [Header("调试")]
     [SerializeField] private bool _showDebugInfo = false;
@@ -42,15 +43,15 @@ public class RBPlayerMotor : MonoBehaviour
     private bool _jumped;
     private bool _performJump;
     private int _coyoteCounter;
-    private int _jumpBufferCounter;
-
-    // 属性
+    private int _jumpBufferCounter;    // 属性
     public Vector3 Velocity => _rb.velocity;
     public Vector3 UpAxis => _upAxis;
     public bool IsGrounded => _onGround;
+    public bool OnSteep => _onSteep;
     public float MoveSpeed => _tuning.maxGroundSpeed;
     public MovementTuningSO Tuning => _tuning;
 
+#region Unity Callbacks
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
@@ -83,10 +84,6 @@ public class RBPlayerMotor : MonoBehaviour
     private void Update()
     {
         UpdateJump();
-
-        // 临时实现动画更新
-        _animator.SetFloat("velocityForward", Vector3.Dot(_rb.velocity, _forwardAxis));
-        _animator.SetFloat("velocityStrafe", -Vector3.Dot(_rb.velocity, _rightAxis));
     }
 
     private void FixedUpdate()
@@ -99,7 +96,11 @@ public class RBPlayerMotor : MonoBehaviour
         UpdateMovement();
         ApplyGravity();
         LimitFallSpeed();
+        
+        // 对齐角色旋转到重力方向
+        AlignRotation();
     }
+#endregion
 
     /// <summary>
     /// 更新重力
@@ -107,26 +108,49 @@ public class RBPlayerMotor : MonoBehaviour
     private void UpdateGravity()
     {
         // 获取自定义重力方向和大小
-        Vector3 gravity = CustomGravity.GetGravity(transform.position, out Vector3 newUpAxis);
-        
+        Vector3 gravity = CustomGravity.GetGravity(transform.position, out Vector3 newUpAxisFromCustomGravity);
+
         // 更新重力方向和上轴
         _gravityDirection = gravity.normalized;
         _gravityMagnitude = gravity.magnitude;
-        
-        // // 如果没有重力源，使用默认重力
-        // if (_gravityMagnitude < 0.1f)
-        // {
-        //     _gravityDirection = Vector3.down;
-        //     _gravityMagnitude = 9.81f;
-        //     newUpAxis = Vector3.up;
-        // }
-        
+
+        Vector3 previousUpAxis = _upAxis; // 记录之前的上轴方向
+        Vector3 targetUpAxis = newUpAxisFromCustomGravity;
+
+        // 当在地面且非陡坡时，优先使用实际的地面法线作为目标"上"方向
+        if (_onGround && !_onSteep && _groundNormal != Vector3.zero)
+        {
+            targetUpAxis = _groundNormal;
+        }
+
         // 平滑更新轴向
-        _upAxis = Vector3.Slerp(_upAxis, newUpAxis, _tuning.turnResponsiveness * Time.fixedDeltaTime).normalized;
-        
+        if (_tuning != null && _tuning.turnResponsiveness > 0f)
+        {
+            _upAxis = Vector3.Slerp(_upAxis, targetUpAxis, _tuning.turnResponsiveness * Time.fixedDeltaTime).normalized;
+        }
+        else if (_tuning != null)
+        {
+            _upAxis = targetUpAxis; // 如果 responsiveness 不是正数，则立即吸附到 targetUpAxis
+        }
+        // 如果 _tuning 为 null，_upAxis 保持不变
+
+        // 检查重力方向是否发生显著变化
+        float upAxisChange = Vector3.Dot(previousUpAxis, _upAxis);
+        if (upAxisChange < 1f) // 如果上轴发生变化
+        {
+            Debug.Log("[RBPlayerMotor] 重力方向发生变化，重新对齐运动轴向");
+            // 重新投影现有速度到新的重力垂直平面
+            Vector3 currentVelocity = _rb.velocity;
+            Vector3 newHorizontalVelocity = Vector3.ProjectOnPlane(currentVelocity, _upAxis);
+            float newVerticalComponent = Vector3.Dot(currentVelocity, _upAxis);
+
+            // 更新速度以保持在新的重力垂直平面内
+            _rb.velocity = newHorizontalVelocity + _upAxis * newVerticalComponent;
+        }
+
         // 计算垂直分量（相对于重力方向）
         _verticalComponent = Vector3.Dot(_rb.velocity, _upAxis);
-        
+
         // 调试绘制
         if (_showDebugGizmos)
         {
@@ -214,9 +238,7 @@ public class RBPlayerMotor : MonoBehaviour
         {
             _coyoteCounter--;
         }
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// 贴地检测
     /// </summary>
     private void SnapToGround()
@@ -224,7 +246,7 @@ public class RBPlayerMotor : MonoBehaviour
         if (_jumped || _onGround) return;
 
         // 检查下落速度是否过快
-        if (-Vector3.Dot(_rb.velocity, _upAxis) > _tuning.maxSnapSpeed) return;
+        if (_tuning == null || -Vector3.Dot(_rb.velocity, _upAxis) > _tuning.maxSnapSpeed) return;
 
         Vector3 position = transform.position;
         if (Physics.Raycast(position, -_upAxis, out RaycastHit hit, _tuning.snapProbeDistance, _groundLayer))
@@ -232,16 +254,18 @@ public class RBPlayerMotor : MonoBehaviour
             float angle = Vector3.Angle(_upAxis, hit.normal);
             if (angle <= _tuning.maxGroundAngle)
             {
-                // 贴地
-                transform.position = hit.point + _upAxis * _groundCheckRadius;
+                // 贴地: 将角色脚底移动到碰撞点上方一个微小偏移处
+                transform.position = hit.point + _upAxis * _groundSnapOffset;
                 _onGround = true;
                 _groundNormal = hit.normal;
                 _verticalComponent = 0f;
+                
+                // 立即更新 Rigidbody 速度以反映这一点
+                Vector3 horizontalVel = Vector3.ProjectOnPlane(_rb.velocity, _upAxis);
+                _rb.velocity = horizontalVel; // 停止任何下沉速度
             }
         }
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// 更新移动
     /// </summary>
     private void UpdateMovement()
@@ -258,7 +282,7 @@ public class RBPlayerMotor : MonoBehaviour
         // 计算期望速度
         Vector3 wishVelocity = wishDirection * maxSpeed;
 
-        // 获取当前水平速度
+        // 获取当前水平面速度 - 确保始终垂直于当前 _upAxis
         Vector3 currentVelocity = _rb.velocity;
         Vector3 horizontalVelocity = Vector3.ProjectOnPlane(currentVelocity, _upAxis);
 
@@ -279,7 +303,19 @@ public class RBPlayerMotor : MonoBehaviour
             acceleration * Time.fixedDeltaTime
         );
 
-        // 应用新速度，保持垂直分量
+        // 确保新的水平速度严格垂直于当前 _upAxis（重力垂直约束）
+        newHorizontalVelocity = Vector3.ProjectOnPlane(newHorizontalVelocity, _upAxis);
+
+        // 临时放动画
+        if (_showDebugInfo)
+        {
+            float velocityForward = Vector3.Dot(newHorizontalVelocity, _forwardAxis);
+            float velocityStrafe = -Vector3.Dot(newHorizontalVelocity, _rightAxis);
+            _animator.SetFloat("velocityForward", velocityForward);
+            _animator.SetFloat("velocityStrafe", velocityStrafe);
+        }
+
+        // 应用新速度，保持垂直分量，确保运动始终在重力垂直平面内
         _rb.velocity = newHorizontalVelocity + _upAxis * _verticalComponent;
 
         // 尝试贴地
@@ -422,9 +458,7 @@ public class RBPlayerMotor : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        if (!_showDebugGizmos) return;
-
-        // 绘制轴向
+        if (!_showDebugGizmos) return;        // 绘制轴向
         Gizmos.color = Color.green;
         Gizmos.DrawLine(transform.position, transform.position + _upAxis * 2f);
 
@@ -433,6 +467,13 @@ public class RBPlayerMotor : MonoBehaviour
 
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(transform.position, transform.position + _forwardAxis * 2f);
+
+        // 绘制地面法线 (当在地面上时)
+        if (_onGround && _groundNormal != Vector3.zero)
+        {
+            Gizmos.color = Color.white;
+            Gizmos.DrawLine(transform.position, transform.position + _groundNormal * 1.8f);
+        }
 
         // 绘制速度
         if (_rb != null)
@@ -453,12 +494,11 @@ public class RBPlayerMotor : MonoBehaviour
             Gizmos.color = Color.cyan;
             Gizmos.DrawLine(transform.position, transform.position - _upAxis * _tuning.snapProbeDistance);
         }
-    }
-
-    private void OnValidate()
+    }    private void OnValidate()
     {
         _groundCheckRadius = Mathf.Max(0.01f, _groundCheckRadius);
-        //_groundCheckDistance = Mathf.Max(0.01f, _groundCheckDistance);
+        _groundSnapOffset = Mathf.Max(0.001f, _groundSnapOffset);
+        _groundCheckDistance = Mathf.Max(0.01f, _groundCheckDistance);
     }
 
     /// <summary>
@@ -482,10 +522,10 @@ public class RBPlayerMotor : MonoBehaviour
         GUILayout.Label($"Velocity: {_rb.velocity:F2}");
         GUILayout.Label($"Speed: {_rb.velocity.magnitude:F2} m/s");
         GUILayout.Space(5);
-        
-        // Ground State
+          // Ground State
         GUILayout.Label("● Ground State", titleStyle);
         GUILayout.Label($"On Ground: {_onGround}");
+        GUILayout.Label($"On Steep: {_onSteep}");
         GUILayout.Label($"Ground Normal: {_groundNormal:F2}");
         GUILayout.Label($"Vertical Component: {_verticalComponent:F2}");
         GUILayout.Space(5);

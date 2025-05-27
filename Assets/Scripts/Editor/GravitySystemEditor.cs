@@ -224,3 +224,274 @@ public class GravityBoxEditor : Editor
         EditorGUILayout.LabelField($"盒体大小: {box.Size}");
     }
 }
+
+/// <summary>
+/// 重力场分析器窗口
+/// </summary>
+public class GravityFieldAnalyzer : EditorWindow
+{
+    private Vector3 _testPosition = Vector3.zero;
+    private float _sampleRadius = 20f;
+    private int _sampleCount = 100;
+    private bool _showVisualization = true;
+    
+    private void OnGUI()
+    {
+        GUILayout.Label("重力场分析器", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+        
+        _testPosition = EditorGUILayout.Vector3Field("测试位置", _testPosition);
+        _sampleRadius = EditorGUILayout.FloatField("采样半径", _sampleRadius);
+        _sampleCount = EditorGUILayout.IntField("采样数量", _sampleCount);
+        _showVisualization = EditorGUILayout.Toggle("显示可视化", _showVisualization);
+        
+        EditorGUILayout.Space();
+        
+        if (GUILayout.Button("分析当前位置重力"))
+        {
+            AnalyzeGravityAtPosition();
+        }
+        
+        if (GUILayout.Button("生成重力场报告"))
+        {
+            GenerateGravityFieldReport();
+        }
+        
+        EditorGUILayout.Space();
+        EditorGUILayout.HelpBox("此工具可以帮助分析场景中的重力场分布，优化重力源配置。", MessageType.Info);
+    }
+    
+    private void AnalyzeGravityAtPosition()
+    {
+        Vector3 gravity = CustomGravity.GetGravity(_testPosition, out Vector3 upAxis);
+        Vector3 strongestSourceUp = CustomGravity.GetUpAxis(_testPosition);
+        
+        Debug.Log($"=== 重力场分析结果 ===");
+        Debug.Log($"测试位置: {_testPosition}");
+        Debug.Log($"重力加速度: {gravity} (强度: {gravity.magnitude:F2} m/s²)");
+        Debug.Log($"上轴方向: {upAxis}");
+        Debug.Log($"最强重力源上轴: {strongestSourceUp}");
+        Debug.Log($"重力源数量: {CustomGravity.SourceCount}");
+        
+        EditorUtility.DisplayDialog("分析完成", 
+            $"重力强度: {gravity.magnitude:F2} m/s²\n" +
+            $"重力方向: {gravity.normalized}\n" +
+            $"上轴方向: {upAxis}\n\n" +
+            "详细信息请查看 Console 窗口", "确定");
+    }
+    
+    private void GenerateGravityFieldReport()
+    {
+        var report = new System.Text.StringBuilder();
+        report.AppendLine("# 重力场分析报告\n");
+        
+        // 采样重力场
+        float maxGravity = 0f;
+        float minGravity = float.MaxValue;
+        float avgGravity = 0f;
+        int validSamples = 0;
+        
+        for (int i = 0; i < _sampleCount; i++)
+        {
+            Vector3 randomOffset = UnityEngine.Random.insideUnitSphere * _sampleRadius;
+            Vector3 samplePos = _testPosition + randomOffset;
+            
+            Vector3 gravity = CustomGravity.GetGravity(samplePos);
+            float gravityMagnitude = gravity.magnitude;
+            
+            if (gravityMagnitude > 0.001f)
+            {
+                maxGravity = Mathf.Max(maxGravity, gravityMagnitude);
+                minGravity = Mathf.Min(minGravity, gravityMagnitude);
+                avgGravity += gravityMagnitude;
+                validSamples++;
+            }
+        }
+        
+        if (validSamples > 0)
+        {
+            avgGravity /= validSamples;
+        }
+        
+        report.AppendLine($"## 采样区域: 半径 {_sampleRadius}m，中心 {_testPosition}");
+        report.AppendLine($"- 有效采样数: {validSamples}/{_sampleCount}");
+        report.AppendLine($"- 最大重力强度: {maxGravity:F2} m/s²");
+        report.AppendLine($"- 最小重力强度: {minGravity:F2} m/s²");
+        report.AppendLine($"- 平均重力强度: {avgGravity:F2} m/s²");
+        report.AppendLine($"- 重力源总数: {CustomGravity.SourceCount}");
+        
+        Debug.Log(report.ToString());
+        
+        // 保存报告到文件
+        string fileName = $"GravityFieldReport_{System.DateTime.Now:yyyyMMdd_HHmmss}.md";
+        string filePath = System.IO.Path.Combine(Application.dataPath, fileName);
+        System.IO.File.WriteAllText(filePath, report.ToString());
+        
+        EditorUtility.DisplayDialog("报告生成完成", 
+            $"重力场报告已保存到:\n{filePath}\n\n" +
+            "同时输出到 Console 窗口", "确定");
+    }
+}
+
+/// <summary>
+/// 重力系统配置向导
+/// </summary>
+public class GravityConfigurationWizard : EditorWindow
+{
+    private enum ConfigurationType
+    {
+        Basic,          // 基础重力场
+        Planetary,      // 行星重力场
+        AntiGravity,    // 反重力区域
+        Complex         // 复杂重力场
+    }
+    
+    private ConfigurationType _configurationType = ConfigurationType.Basic;
+    private Vector3 _centerPosition = Vector3.zero;
+    private float _gravityStrength = 9.8f;
+    private float _fieldSize = 20f;
+    
+    private void OnGUI()
+    {
+        GUILayout.Label("重力系统配置向导", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+        
+        EditorGUILayout.LabelField("选择重力场类型:", EditorStyles.boldLabel);
+        _configurationType = (ConfigurationType)EditorGUILayout.EnumPopup("配置类型", _configurationType);
+        
+        EditorGUILayout.Space();
+        
+        _centerPosition = EditorGUILayout.Vector3Field("中心位置", _centerPosition);
+        _gravityStrength = EditorGUILayout.FloatField("重力强度", _gravityStrength);
+        _fieldSize = EditorGUILayout.FloatField("场地大小", _fieldSize);
+        
+        EditorGUILayout.Space();
+        
+        // 显示配置说明
+        ShowConfigurationDescription();
+        
+        EditorGUILayout.Space();
+        
+        if (GUILayout.Button("创建配置", GUILayout.Height(30)))
+        {
+            CreateConfiguration();
+        }
+        
+        EditorGUILayout.Space();
+        EditorGUILayout.HelpBox("此向导可帮助您快速创建常见的重力场配置。", MessageType.Info);
+    }
+    
+    private void ShowConfigurationDescription()
+    {
+        string description = _configurationType switch
+        {
+            ConfigurationType.Basic => "创建基础向下重力场，适合平台游戏",
+            ConfigurationType.Planetary => "创建球形重力场，模拟行星引力",
+            ConfigurationType.AntiGravity => "创建向上重力场，反重力效果",
+            ConfigurationType.Complex => "创建多重力源复杂场景",
+            _ => "选择一个配置类型"
+        };
+        
+        EditorGUILayout.HelpBox(description, MessageType.Info);
+    }
+    
+    private void CreateConfiguration()
+    {
+        switch (_configurationType)
+        {
+            case ConfigurationType.Basic:
+                CreateBasicConfiguration();
+                break;
+            case ConfigurationType.Planetary:
+                CreatePlanetaryConfiguration();
+                break;
+            case ConfigurationType.AntiGravity:
+                CreateAntiGravityConfiguration();
+                break;
+            case ConfigurationType.Complex:
+                CreateComplexConfiguration();
+                break;
+        }
+        
+        EditorUtility.DisplayDialog("配置完成", $"已创建 {_configurationType} 重力场配置", "确定");
+    }
+    
+    private void CreateBasicConfiguration()
+    {
+        // 创建基础向下重力平面
+        var gravityPlane = GravitySystemEditor.CreateGravityPlane(
+            "Basic_Gravity_Plane", 
+            _centerPosition, 
+            _gravityStrength, 
+            _fieldSize
+        );
+        
+        Selection.activeGameObject = gravityPlane;
+    }
+    
+    private void CreatePlanetaryConfiguration()
+    {
+        // 创建球形重力源
+        var gravitySphere = GravitySystemEditor.CreateGravitySphere(
+            "Planetary_Gravity", 
+            _centerPosition, 
+            _gravityStrength, 
+            _fieldSize
+        );
+        
+        Selection.activeGameObject = gravitySphere;
+    }
+    
+    private void CreateAntiGravityConfiguration()
+    {
+        // 创建向上的重力平面
+        var gravityPlane = GravitySystemEditor.CreateGravityPlane(
+            "AntiGravity_Plane", 
+            _centerPosition, 
+            -_gravityStrength,  // 负重力 = 反重力
+            _fieldSize
+        );
+        
+        // 旋转180度使其向上
+        gravityPlane.transform.rotation = Quaternion.Euler(180, 0, 0);
+        
+        Selection.activeGameObject = gravityPlane;
+    }
+    
+    private void CreateComplexConfiguration()
+    {
+        // 创建多个重力源的复杂配置
+        var parent = new GameObject("Complex_Gravity_System");
+        parent.transform.position = _centerPosition;
+        
+        // 中央主重力源
+        var mainGravity = GravitySystemEditor.CreateGravitySphere(
+            "Main_Gravity", 
+            _centerPosition, 
+            _gravityStrength, 
+            _fieldSize * 0.8f
+        );
+        mainGravity.transform.SetParent(parent.transform);
+        
+        // 周围的小重力源
+        for (int i = 0; i < 4; i++)
+        {
+            float angle = i * 90f * Mathf.Deg2Rad;
+            Vector3 offset = new Vector3(
+                Mathf.Cos(angle) * _fieldSize * 0.7f, 
+                0, 
+                Mathf.Sin(angle) * _fieldSize * 0.7f
+            );
+            
+            var smallGravity = GravitySystemEditor.CreateGravitySphere(
+                $"Small_Gravity_{i}", 
+                _centerPosition + offset, 
+                _gravityStrength * 0.5f, 
+                _fieldSize * 0.3f
+            );
+            smallGravity.transform.SetParent(parent.transform);
+        }
+        
+        Selection.activeGameObject = parent;
+    }
+}
