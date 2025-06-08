@@ -221,8 +221,8 @@ namespace DWHITE {
 	        EditorGUILayout.Space();
 	        EditorGUILayout.LabelField("重力信息", EditorStyles.boldLabel);
 	        EditorGUILayout.LabelField($"重力向量: {box.Gravity}");
-	        EditorGUILayout.LabelField($"重力强度: {box.Gravity.magnitude:F2} m/s²");
-	        EditorGUILayout.LabelField($"盒体大小: {box.Size}");
+	        EditorGUILayout.LabelField($"重力强度: {box.Gravity.ToString("F2")} m/s²");
+	        EditorGUILayout.LabelField($"盒体大小: {box.BoundaryDistance}");
 	    }
 	}
 	

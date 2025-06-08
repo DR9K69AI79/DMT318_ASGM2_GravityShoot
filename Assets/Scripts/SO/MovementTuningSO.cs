@@ -12,6 +12,9 @@ namespace DWHITE {
 	    [Tooltip("地面加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
 	    public AnimationCurve groundAcceleration = AnimationCurve.EaseInOut(0f, 30f, 1f, 5f);
 	    
+	    [Tooltip("地面最大加速度 (m/s²)")]
+	    public float maxGroundAcceleration = 30f;
+	    
 	    [Tooltip("地面最大移动速度 (m/s)")]
 	    public float maxGroundSpeed = 8f;
 	    
@@ -19,10 +22,16 @@ namespace DWHITE {
 	    [Tooltip("空中加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
 	    public AnimationCurve airAcceleration = AnimationCurve.EaseInOut(0f, 15f, 1f, 2f);
 	    
+	    [Tooltip("空中最大加速度 (m/s²)")]
+	    public float maxAirAcceleration = 15f;
+	    
 	    [Tooltip("空中最大移动速度 (m/s)")]
 	    public float maxAirSpeed = 6f;
 	    
 	    [Header("跳跃设置")]
+	    [Tooltip("跳跃高度 (m) - 用于计算跳跃速度")]
+	    public float jumpHeight = 2f;
+	    
 	    [Tooltip("跳跃初始速度 (m/s)")]
 	    public float jumpSpeed = 8f;
 	    
@@ -35,6 +44,10 @@ namespace DWHITE {
 	    public int jumpBufferFrames = 5;
 	    
 	    [Header("地面贴合")]
+	    [Tooltip("最小地面角度点积 - 用于判断表面是否可行走")]
+	    [Range(0f, 1f)]
+	    public float minGroundDotProduct = 0.9f;
+	    
 	    [Tooltip("贴地射线检测距离 (m)")]
 	    public float snapProbeDistance = 1f;
 	    
@@ -65,21 +78,24 @@ namespace DWHITE {
 	    
 	    [Tooltip("刹车效果 - 停止移动时的减速倍率")]
 	    public float brakeMultiplier = 2f;
-	    
-	    private void OnValidate()
-	    {
-	        // 确保所有数值都在合理范围内
-	        maxGroundSpeed = Mathf.Max(0.1f, maxGroundSpeed);
-	        maxAirSpeed = Mathf.Max(0.1f, maxAirSpeed);
-	        jumpSpeed = Mathf.Max(0.1f, jumpSpeed);
-	        snapProbeDistance = Mathf.Max(0.01f, snapProbeDistance);
-	        maxSnapSpeed = Mathf.Max(0.1f, maxSnapSpeed);
-	        maxStepHeight = Mathf.Max(0f, maxStepHeight);
-	        stepProbeDistance = Mathf.Max(0.01f, stepProbeDistance);
-	        gravityMultiplier = Mathf.Max(0.1f, gravityMultiplier);
-	        maxFallSpeed = Mathf.Max(1f, maxFallSpeed);
-	        turnResponsiveness = Mathf.Max(0.1f, turnResponsiveness);
-	        brakeMultiplier = Mathf.Max(0.1f, brakeMultiplier);
-	    }
+	      private void OnValidate()
+    {
+        // 确保所有数值都在合理范围内
+        maxGroundAcceleration = Mathf.Max(0.1f, maxGroundAcceleration);
+        maxAirAcceleration = Mathf.Max(0.1f, maxAirAcceleration);
+        maxGroundSpeed = Mathf.Max(0.1f, maxGroundSpeed);
+        maxAirSpeed = Mathf.Max(0.1f, maxAirSpeed);
+        jumpHeight = Mathf.Max(0.1f, jumpHeight);
+        jumpSpeed = Mathf.Max(0.1f, jumpSpeed);
+        minGroundDotProduct = Mathf.Clamp01(minGroundDotProduct);
+        snapProbeDistance = Mathf.Max(0.01f, snapProbeDistance);
+        maxSnapSpeed = Mathf.Max(0.1f, maxSnapSpeed);
+        maxStepHeight = Mathf.Max(0f, maxStepHeight);
+        stepProbeDistance = Mathf.Max(0.01f, stepProbeDistance);
+        gravityMultiplier = Mathf.Max(0.1f, gravityMultiplier);
+        maxFallSpeed = Mathf.Max(1f, maxFallSpeed);
+        turnResponsiveness = Mathf.Max(0.1f, turnResponsiveness);
+        brakeMultiplier = Mathf.Max(0.1f, brakeMultiplier);
+    }
 	}
 }
