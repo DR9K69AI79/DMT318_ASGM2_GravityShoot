@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace DWHITE
 {
@@ -9,6 +10,7 @@ namespace DWHITE
     public class GravityBox : GravitySource
     {
         [Header("基础重力设置")]
+        [SerializeField] private BoxCollider boxCollider;
         [SerializeField] private float gravity = 9.81f;
 
         [Header("盒体边界")]
@@ -19,8 +21,8 @@ namespace DWHITE
         [SerializeField, Min(0f)] private float innerFalloffDistance = 0f;
 
         [Header("外部距离设置")]
-        [SerializeField, Min(0f)] private float outerDistance = 0f;
-        [SerializeField, Min(0f)] private float outerFalloffDistance = 0f;
+        [SerializeField, Min(0f)] private float outerDistance = 4f;
+        [SerializeField, Min(0f)] private float outerFalloffDistance = 8f;
 
         // 计算得出的衰减因子
         private float innerFalloffFactor, outerFalloffFactor;
@@ -161,22 +163,36 @@ namespace DWHITE
             OnValidate();
         }
 
+        [ContextMenu("Set Boundary By Collider")]
+        private void SetBoundaryByCollider()
+        {
+            if (boxCollider == null)
+            {
+                boxCollider = GetComponent<BoxCollider>();
+            }
+
+            if (boxCollider != null)
+            {
+                boundaryDistance = Vector3.Scale(boxCollider.size, transform.localScale) * 0.5f;
+            }
+        }
+
         private void OnValidate()
         {
             boundaryDistance = Vector3.Max(boundaryDistance, Vector3.zero);
-            
+
             float maxInner = Mathf.Min(
                 Mathf.Min(boundaryDistance.x, boundaryDistance.y), boundaryDistance.z
             );
-            
+
             innerDistance = Mathf.Min(innerDistance, maxInner);
             innerFalloffDistance = Mathf.Max(Mathf.Min(innerFalloffDistance, maxInner), innerDistance);
             outerFalloffDistance = Mathf.Max(outerFalloffDistance, outerDistance);
 
             // 计算衰减因子，避免除零
-            innerFalloffFactor = innerFalloffDistance > innerDistance ? 
+            innerFalloffFactor = innerFalloffDistance > innerDistance ?
                 1f / (innerFalloffDistance - innerDistance) : 0f;
-            outerFalloffFactor = outerFalloffDistance > outerDistance ? 
+            outerFalloffFactor = outerFalloffDistance > outerDistance ?
                 1f / (outerFalloffDistance - outerDistance) : 0f;
         }
 

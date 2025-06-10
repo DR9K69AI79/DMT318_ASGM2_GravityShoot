@@ -45,6 +45,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  maxGroundAcceleration: 30
   maxGroundSpeed: 6
   airAcceleration:
     serializedVersion: 2
@@ -70,16 +71,19 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  maxAirAcceleration: 15
   maxAirSpeed: 6
+  jumpHeight: 2
   jumpSpeed: 10
   coyoteFrames: 10
   jumpBufferFrames: 10
+  minGroundDotProduct: 0.9
   snapProbeDistance: 5
   maxSnapSpeed: 10
   maxGroundAngle: 45
   maxStepHeight: 0.3
   stepProbeDistance: 0.5
-  gravityMultiplier: 3
+  gravityMultiplier: 2
   maxFallSpeed: 30
   turnResponsiveness: 12
   brakeMultiplier: 4

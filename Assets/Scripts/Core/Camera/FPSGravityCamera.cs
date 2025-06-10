@@ -9,7 +9,9 @@ namespace DWHITE {
 	public class FPSGravityCamera : MonoBehaviour
 	{
 	    [Header("相机设置")]
-	    [SerializeField] private Transform _cameraRoot;
+	    [SerializeField] private Transform _camOrientation; // 相机朝向参考
+		[SerializeField] private Transform _characterRig; // 角色模型
+		[SerializeField] private RBPlayerMotor _motor;
 	    [SerializeField] private Camera _playerCamera;
 	    [SerializeField] private Vector3 _cameraOffset = new Vector3(0, 1.7f, 0);
 	    
@@ -17,58 +19,79 @@ namespace DWHITE {
 	    [SerializeField] private float _lookSensitivity = 2f;
 	    [SerializeField] private float _verticalLookLimit = 360f;
 	    [SerializeField] private bool _invertY = false;
-	    
-	    [Header("高级设置")]
-	    [SerializeField] private bool _syncCharacterRotation = true;
-	    [SerializeField] private float _characterSyncSpeed = 10f;
-	    
+
+		[Header("高级设置")]
+		[SerializeField] private float _characterSyncSpeed = 10f;
+		[Tooltip("启用后，相机将不再直接控制角色旋转，而是通过HorizontalForwardDirection提供方向")]
+		[SerializeField] private bool _useIndependentRotation = false;
+			
 	    [Header("调试")]
 	    [SerializeField] private bool _showDebugInfo = false;
 	    [SerializeField] private bool _showDebugGizmos = false;
 	    
 	    // 组件引用
 	    private PlayerInput _playerInput;
-	    private RBPlayerMotor _motor;
+	    // private RBPlayerMotor _motor;
 	    
 	    // 旋转状态
 	    private float _yaw = 0f;
 	    private float _pitch = 0f;
 	    
+	    // 新增：独立的方向向量系统
+	    private Vector3 _horizontalForwardDirection = Vector3.forward;
+	    private Vector3 _horizontalRightDirection = Vector3.right;
+	    
 	    // 属性
 	    public Camera PlayerCamera => _playerCamera;
-	    public Transform CameraRoot => _cameraRoot;
 	    public float Yaw => _yaw;
 	    public float Pitch => _pitch;
-	    public Vector3 CameraForward => _cameraRoot.forward;
-	    public Vector3 CameraRight => _cameraRoot.right;
+	    public Vector3 CameraForward => _camOrientation.forward;
+	    public Vector3 CameraRight => _camOrientation.right;
 	    
+	    // 新增：用于移动系统的方向属性
+	    /// <summary>
+	    /// 水平前进方向 - 用于角色移动控制
+	    /// 基于相机偏航角和当前重力平面计算
+	    /// </summary>
+	    public Vector3 HorizontalForwardDirection => _horizontalForwardDirection;
+	    
+	    /// <summary>
+	    /// 水平右侧方向 - 用于角色移动控制
+	    /// 基于相机偏航角和当前重力平面计算
+	    /// </summary>
+	    public Vector3 HorizontalRightDirection => _horizontalRightDirection;
+    
+		/// <summary>
+		/// 是否启用独立旋转模式
+		/// 在此模式下，相机不直接控制角色旋转
+		/// </summary>
+		public bool UseIndependentRotation => _useIndependentRotation;
+			
 	    private void Awake()
 	    {
 	        _playerInput = GetComponent<PlayerInput>();
 	        _motor = GetComponent<RBPlayerMotor>();
-	        
-	        // 设置相机根节点
-	        SetupCameraRoot();
-	        
-	        // 查找或创建相机
-	        SetupCamera();
 	    }
-	    
+
 	    private void Start()
 	    {
 	        // 初始化旋转状态
 	        InitializeRotation();
-	        
+
+	        // 初始化方向向量
+	        UpdateHorizontalDirections();
+
 	        // 锁定光标
 	        _playerInput.SetCursorLock(true);
-	    }
-	    
+		}
+			
 	    private void LateUpdate()
 	    {
 	        UpdateInput();
+	        UpdateHorizontalDirections(); // 新增：更新水平方向向量
 	        ApplyCameraTransform();
 	        
-	        if (_syncCharacterRotation)
+	        if (!UseIndependentRotation)
 	        {
 	            SyncCharacterRotation();
 	        }
@@ -79,73 +102,40 @@ namespace DWHITE {
 	        }
 	    }
 	    
-	    /// <summary>
-	    /// 设置相机根节点
-	    /// </summary>
-	    private void SetupCameraRoot()
-	    {
-	        if (_cameraRoot == null)
-	        {
-	            GameObject rootGO = new GameObject("CameraRoot");
-	            rootGO.transform.SetParent(transform, false);
-	            rootGO.transform.localPosition = _cameraOffset;
-	            _cameraRoot = rootGO.transform;
-	        }
-	        else
-	        {
-	            // 确保相机根节点位置正确
-	            _cameraRoot.localPosition = _cameraOffset;
-	        }
-	    }
-	    
-	    /// <summary>
-	    /// 设置相机
-	    /// </summary>
-	    private void SetupCamera()
-	    {
-	        if (_playerCamera == null)
-	        {
-	            _playerCamera = _cameraRoot.GetComponentInChildren<Camera>();
-	            
-	            if (_playerCamera == null)
-	            {
-	                GameObject cameraGO = new GameObject("PlayerCamera");
-	                cameraGO.transform.SetParent(_cameraRoot, false);
-	                cameraGO.transform.localPosition = Vector3.zero;
-	                _playerCamera = cameraGO.AddComponent<Camera>();
-	                
-	                // 设置为主相机
-	                _playerCamera.tag = "MainCamera";
-	            }
-	        }
-	    }
-	    
-	    /// <summary>
-	    /// 获取在当前重力平面上的参考"正前方"方向
-	    /// </summary>
-	    private Vector3 GetReferenceForwardOnPlane()
-	    {
-	        if (_motor == null || _motor.UpAxis == Vector3.zero)
-	        {
-	            Debug.LogWarning("[FPSGravityCamera] Motor not ready or UpAxis is zero in GetReferenceForwardOnPlane. Returning world forward.");
-	            return Vector3.forward; 
-	        }
-	
-	        Vector3 referenceForward = Vector3.ProjectOnPlane(Vector3.forward, _motor.UpAxis).normalized;
-	        if (referenceForward == Vector3.zero)
-	        {
-	            // 如果世界正前方平行于 UpAxis，则尝试使用世界右方向
-	            referenceForward = Vector3.ProjectOnPlane(Vector3.right, _motor.UpAxis).normalized;
-	            if (referenceForward == Vector3.zero)
-	            {
-	                // 极少数情况：通过旋转构造一个正交向量
-	                Quaternion toGravityPlane = Quaternion.FromToRotation(Vector3.up, _motor.UpAxis);
-	                referenceForward = (toGravityPlane * Vector3.forward).normalized;
-	                if (referenceForward == Vector3.zero) referenceForward = Vector3.one.normalized;
-	            }
-	        }
-	        return referenceForward;
-	    }
+		/// <summary>
+		/// 获取在当前重力平面上的参考"正前方"方向
+		/// 使用玩家当前朝向作为参考，而不是世界坐标
+		/// </summary>
+		private Vector3 GetReferenceForwardOnPlane()
+		{
+			if (_motor == null || _motor.UpAxis == Vector3.zero)
+			{
+				Debug.LogWarning("[FPSGravityCamera] Motor not ready or UpAxis is zero. Using transform forward.");
+				return transform.forward; 
+			}
+		
+			// 使用玩家当前的前方向投影到重力平面上
+			Vector3 referenceForward = Vector3.ProjectOnPlane(transform.forward, _motor.UpAxis).normalized;
+			
+			if (referenceForward.sqrMagnitude < 0.001f)
+			{
+				// 如果玩家朝向平行于重力轴，使用玩家的右方向
+				referenceForward = Vector3.ProjectOnPlane(transform.right, _motor.UpAxis).normalized;
+				
+				if (referenceForward.sqrMagnitude < 0.001f)
+				{
+					// 最后的后备方案：构造一个垂直于重力轴的任意方向
+					referenceForward = Vector3.Cross(_motor.UpAxis, Vector3.up);
+					if (referenceForward.sqrMagnitude < 0.001f)
+					{
+						referenceForward = Vector3.Cross(_motor.UpAxis, Vector3.right);
+					}
+					referenceForward = referenceForward.normalized;
+				}
+			}
+			
+			return referenceForward;
+		}
 	    
 	    /// <summary>
 	    /// 初始化旋转状态
@@ -202,48 +192,63 @@ namespace DWHITE {
 	    }
 	    
 	    /// <summary>
+	    /// 更新水平方向向量
+	    /// 基于当前偏航角和重力平面计算移动方向
+	    /// </summary>
+	    private void UpdateHorizontalDirections()
+	    {
+	        Vector3 referenceForward = GetReferenceForwardOnPlane();
+
+	        // 根据偏航角计算水平前进方向
+	        _horizontalForwardDirection = Quaternion.AngleAxis(_yaw, _motor.UpAxis) * referenceForward;
+	        
+	        // 计算右侧方向（垂直于前进方向和上轴）
+	        _horizontalRightDirection = Vector3.Cross(_motor.UpAxis, _horizontalForwardDirection).normalized;
+	        
+	        // 确保方向向量归一化
+	        _horizontalForwardDirection = _horizontalForwardDirection.normalized;
+	    }
+	    
+	    /// <summary>
 	    /// 应用相机变换
 	    /// </summary>
 	    private void ApplyCameraTransform()
 	    {
 	        // 相机的旋转 = 角色当前的实际身体旋转 * 相机的局部俯仰旋转
 	        // transform.rotation 是角色身体的当前实际朝向（已由SyncCharacterRotation处理重力和目标yaw）
-	        _cameraRoot.rotation = transform.rotation * Quaternion.AngleAxis(_pitch, Vector3.right);
+	        _camOrientation.rotation = transform.rotation * Quaternion.AngleAxis(_pitch, Vector3.right) * Quaternion.AngleAxis(_yaw, _motor.UpAxis);
 	        
 	        // 相机位置的计算保持不变
-	        _cameraRoot.position = transform.position + (transform.rotation * _cameraOffset);
+	        _camOrientation.position = transform.position + (transform.rotation * _cameraOffset);
 	    }
-	    
+		
 	    /// <summary>
-	    /// 同步角色旋转
-	    /// </summary>
-	    private void SyncCharacterRotation()
-	    {
-	        // 如果不启用角色旋转同步，或者 motor 未初始化，则不执行
-	        if (!_syncCharacterRotation || _motor == null) return;
-	
-	        Vector3 referenceForwardOnPlane = GetReferenceForwardOnPlane();
-	        if (referenceForwardOnPlane == Vector3.zero)
-	        {
-	            Debug.LogWarning("[FPSGravityCamera] Could not get a valid reference forward for SyncCharacterRotation.");
-	            return; 
-	        }
-	
-	        // 角色身体的目标"正前方"方向，通过将参考方向按 _yaw 角度围绕 _motor.UpAxis 旋转得到
-	        Vector3 targetCharacterForward = Quaternion.AngleAxis(_yaw, _motor.UpAxis) * referenceForwardOnPlane;
-	        
-	        // 确保目标前方向量有效
-	        if (targetCharacterForward.sqrMagnitude > 0.001f) 
-	        {
-	            Quaternion targetRotation = Quaternion.LookRotation(targetCharacterForward, _motor.UpAxis);
-	            transform.rotation = Quaternion.Slerp(
-	                transform.rotation, 
-	                targetRotation, 
-	                _characterSyncSpeed * Time.deltaTime
-	            );
-	        }
-	    }
-	    
+		/// 同步角色旋转
+		/// </summary>
+		private void SyncCharacterRotation()
+		{
+			Vector3 referenceForwardOnPlane = GetReferenceForwardOnPlane();
+			if (referenceForwardOnPlane == Vector3.zero)
+			{
+				Debug.LogWarning("[FPSGravityCamera] Could not get a valid reference forward for SyncCharacterRotation.");
+				return;
+			}
+
+			// 角色身体的目标"正前方"方向，通过将参考方向按 _yaw 角度围绕 _motor.UpAxis 旋转得到
+			Vector3 targetCharacterForward = Quaternion.AngleAxis(_yaw, _motor.UpAxis) * referenceForwardOnPlane;
+
+			// 确保目标前方向量有效
+			if (targetCharacterForward.sqrMagnitude > 0.001f)
+			{
+				Quaternion targetRotation = Quaternion.LookRotation(targetCharacterForward, _motor.UpAxis);
+				_characterRig.transform.rotation = Quaternion.Slerp(
+					_characterRig.transform.rotation,
+					targetRotation,
+					_characterSyncSpeed * Time.deltaTime
+				);
+			}
+		}
+			
 	    /// <summary>
 	    /// 设置灵敏度
 	    /// </summary>
@@ -312,54 +317,63 @@ namespace DWHITE {
 	        float angle = Vector3.Angle(_playerCamera.transform.forward, toTarget);
 	        return angle <= maxAngle;
 	    }
-	    
-	    /// <summary>
-	    /// 更新调试信息
-	    /// </summary>
-	    private void UpdateDebugInfo()
-	    {
-	        if (Time.frameCount % 30 == 0) // 每30帧更新一次
-	        {
-	            string info = $"[FPSGravityCamera] Yaw: {_yaw:F1}°, Pitch: {_pitch:F1}°";
-	            info += $"\\nPlayer Up Axis (_motor.UpAxis): {_motor.UpAxis:F2}";
-	            info += $"\\nPlayer Body Rotation: {transform.rotation.eulerAngles:F1}";
-	            info += $"\\nReference Forward: {GetReferenceForwardOnPlane():F2}";
-	            Debug.Log(info);
-	        }
-	    }
-	    
-	    private void OnDrawGizmosSelected()
-	    {
-	        if (!_showDebugGizmos) return;
-	        
-	        // 绘制相机根位置
-	        if (_cameraRoot != null)
-	        {
-	            Gizmos.color = Color.yellow;
-	            Gizmos.DrawWireSphere(_cameraRoot.position, 0.1f);
-	            
-	            // 绘制相机朝向
-	            Gizmos.color = Color.red;
-	            Gizmos.DrawLine(_cameraRoot.position, _cameraRoot.position + _cameraRoot.forward * 2f);
-	            
-	            Gizmos.color = Color.green;
-	            Gizmos.DrawLine(_cameraRoot.position, _cameraRoot.position + _cameraRoot.up * 2f);
-	            
-	            Gizmos.color = Color.blue;
-	            Gizmos.DrawLine(_cameraRoot.position, _cameraRoot.position + _cameraRoot.right * 2f);
-	        }
-	        
-	        // 绘制玩家身体的向上轴以供比较
-	        if (transform != null)
-	        {
-	            Gizmos.color = Color.magenta;
-	            Gizmos.DrawLine(transform.position, transform.position + transform.up * 1.5f);
-	            
-	            // 绘制玩家身体的前方向
-	            Gizmos.color = Color.cyan;
-	            Gizmos.DrawLine(transform.position, transform.position + transform.forward * 1.5f);
-	        }
-	    }
+
+		/// <summary>
+		/// 更新调试信息
+		/// </summary>
+		private void UpdateDebugInfo()
+		{
+			if (Time.frameCount % 30 == 0) // 每30帧更新一次
+			{
+				string info = $"[FPSGravityCamera] Yaw: {_yaw:F1}°, Pitch: {_pitch:F1}°";
+				info += $"\\nPlayer Up Axis (_motor.UpAxis): {_motor.UpAxis:F2}";
+				info += $"\\nPlayer Body Rotation: {transform.rotation.eulerAngles:F1}";
+				info += $"\\nReference Forward: {GetReferenceForwardOnPlane():F2}";
+				info += $"\\nHorizontal Forward: {_horizontalForwardDirection:F2}";
+				info += $"\\nHorizontal Right: {_horizontalRightDirection:F2}";
+				Debug.Log(info);
+			}
+		}
+		
+		private void OnDrawGizmosSelected()
+		{
+			if (!_showDebugGizmos) return;
+
+			// 绘制相机根位置
+			if (_camOrientation != null)
+			{
+				Gizmos.color = Color.yellow;
+				Gizmos.DrawWireSphere(_camOrientation.position, 0.1f);
+
+				// 绘制相机朝向
+				Gizmos.color = Color.red;
+				Gizmos.DrawLine(_camOrientation.position, _camOrientation.position + _camOrientation.forward * 2f);
+
+				Gizmos.color = Color.green;
+				Gizmos.DrawLine(_camOrientation.position, _camOrientation.position + _camOrientation.up * 2f);
+
+				Gizmos.color = Color.blue;
+				Gizmos.DrawLine(_camOrientation.position, _camOrientation.position + _camOrientation.right * 2f);
+			}
+
+			// 绘制玩家身体的向上轴以供比较
+			if (transform != null)
+			{
+				Gizmos.color = Color.magenta;
+				Gizmos.DrawLine(transform.position, transform.position + transform.up * 1.5f);
+
+				// 绘制玩家身体的前方向
+				Gizmos.color = Color.cyan;
+				Gizmos.DrawLine(transform.position, transform.position + transform.forward * 1.5f);
+
+				// 绘制新的水平方向向量
+				Gizmos.color = Color.white;
+				Gizmos.DrawLine(transform.position, transform.position + _horizontalForwardDirection * 2f);
+
+				Gizmos.color = Color.gray;
+				Gizmos.DrawLine(transform.position, transform.position + _horizontalRightDirection * 2f);
+			}
+		}
 	    
 	    private void OnValidate()
 	    {

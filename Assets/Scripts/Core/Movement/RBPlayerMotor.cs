@@ -14,6 +14,7 @@ namespace DWHITE
         [Header("调参配置")]
         [SerializeField] private MovementTuningSO _tuning;
         [SerializeField] private Animator _animator; // Debug临时实现    
+        [SerializeField] private GameObject _characterRig; 
 
         [Header("地面检测")]
         [SerializeField] private LayerMask _groundLayer = -1;
@@ -22,11 +23,11 @@ namespace DWHITE
 
         [Header("调试")]
         [SerializeField] private bool _showDebugInfo = false;
-        [SerializeField] private bool _showDebugGizmos = false;
-
-        // 组件引用
+        [SerializeField] private bool _showDebugGizmos = false;        // 组件引用
         private Rigidbody _rb;
         private PlayerInput _playerInput;
+        private FPSGravityCamera _cameraController;
+        private Transform _camOrientation;
 
         // 运动状态 - 参考 MovingSphere 的设计
         private Vector3 _upAxis = Vector3.up;
@@ -74,6 +75,8 @@ namespace DWHITE
         {
             _rb = GetComponent<Rigidbody>();
             _playerInput = GetComponent<PlayerInput>();
+            _cameraController = GetComponent<FPSGravityCamera>();
+            _camOrientation = transform.GetChild(0);
 
             // 配置 Rigidbody - 参考 MovingSphere
             _rb.useGravity = false;
@@ -109,9 +112,11 @@ namespace DWHITE
 
         private void FixedUpdate()
         {
-            if (_tuning == null) return;
+            if (_tuning == null) {
+                Debug.LogError("[RBPlayerMotor] MovementTuningSO 未设置，请在 Inspector 中指定");
+                return;
+            }
 
-            // 参考 MovingSphere 的 FixedUpdate 结构
             _gravity = CustomGravity.GetGravity(_rb.position, out _upAxis);
             UpdateState();
             AdjustVelocity();
@@ -122,10 +127,7 @@ namespace DWHITE
                 Jump();
             }
 
-            // 应用重力
             _velocity += _gravity * Time.fixedDeltaTime;
-            
-            // 直接设置速度 - 关键差异点1：不使用 AddForce
             _rb.velocity = _velocity;
             
             ClearState();
@@ -166,24 +168,12 @@ namespace DWHITE
         }
 
         /// <summary>
-        /// 更新运动轴向 - 参考 MovingSphere 的轴向更新
+        /// 更新运动轴向 - 使用相机控制器提供的方向
         /// </summary>
         private void UpdateMovementAxes()
         {
-            Camera mainCamera = Camera.main;
-            Vector3 cameraForward;
-            
-            if (mainCamera != null)
-            {
-                cameraForward = ProjectDirectionOnPlane(mainCamera.transform.forward, _upAxis);
-            }
-            else
-            {
-                cameraForward = ProjectDirectionOnPlane(Vector3.forward, _upAxis);
-            }
-            
-            _rightAxis = Vector3.Cross(_upAxis, cameraForward).normalized;
-            _forwardAxis = Vector3.Cross(_rightAxis, _upAxis).normalized;
+            _forwardAxis = _cameraController.HorizontalForwardDirection;
+            _rightAxis = _cameraController.HorizontalRightDirection;
         }
 
         /// <summary>
@@ -450,6 +440,17 @@ namespace DWHITE
                 targetRotation,
                 _tuning.turnResponsiveness * Time.fixedDeltaTime
             );
+
+            // 对齐角色模型
+            if (_characterRig != null)
+            {
+                Quaternion rigForward = Quaternion.LookRotation(_cameraController.HorizontalForwardDirection, _upAxis);
+                _characterRig.transform.rotation = Quaternion.Slerp(
+                    _characterRig.transform.rotation,
+                    rigForward,
+                    _tuning.turnResponsiveness * Time.fixedDeltaTime
+                );
+            }
         }
 
         /// <summary>
