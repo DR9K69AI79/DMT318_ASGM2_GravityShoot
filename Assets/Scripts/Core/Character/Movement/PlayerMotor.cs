@@ -41,9 +41,8 @@ namespace DWHITE
         private PlayerInput _playerInput;
         private PlayerView _cameraController;
         private Transform _camOrientation;
-        
-        #endregion
 
+        #endregion
         #region State Variables
 
         // 运动状态
@@ -51,10 +50,11 @@ namespace DWHITE
         private Vector3 _desiredVelocity;
         private Vector3 _gravity;
 
-        // 坐标轴状态
-        private Vector3 _upAxis = Vector3.up;
-        private Vector3 _rightAxis = Vector3.right;
-        private Vector3 _forwardAxis = Vector3.forward;
+        // --- 重构后的旋转与坐标系状态 ---
+        private Vector3 _currentUpAxis = Vector3.up;     // 当前帧的理论"上"方向（来自重力或地面）
+        private Vector3 _smoothedUpAxis = Vector3.up;    // 平滑过渡后的"上"方向，用于所有计算
+        private float _referenceBodyYaw;                 // 在参考坐标系中身体的Yaw角度
+        private float _targetReferenceBodyYaw;           // PlayerView传来的目标Yaw角度
 
         // 地面检测状态
         private bool _onGround;
@@ -62,7 +62,6 @@ namespace DWHITE
         private Vector3 _contactNormal;
         private Vector3 _groundNormal;
         private float _minGroundDotProduct;
-        private int _groundContactCount;
         private int _stepsSinceLastGrounded;
         private int _stepsSinceLastJump;
 
@@ -75,11 +74,7 @@ namespace DWHITE
         // 奔跑状态
         private bool _isSprinting;
         private bool _sprintToggled;
-        private float _currentSpeedMultiplier = 1f;        // 新增：旋转控制相关状态
-        private Quaternion _targetRotation;
-        private bool _hasTargetRotation = false;
-        private float _targetYaw;
-        private bool _hasTargetYaw = false;
+        private float _currentSpeedMultiplier = 1f;
         
         #endregion
 
@@ -93,14 +88,17 @@ namespace DWHITE
         /// <summary>
         /// 角色当前的“上”方向，由重力系统决定。
         /// </summary>
-        public Vector3 UpAxis => _upAxis;
+        public Vector3 UpAxis => _smoothedUpAxis;
 
         /// <summary>
         /// 角色当前的“前”方向，由重力系统决定。
         /// </summary>
-        public Vector3 ForwardAxis => _forwardAxis;
-
+        public Vector3 ForwardAxis { get; private set; }
         
+        /// <summary>
+        /// 基于相机和当前重力平面的"右"方向。
+        /// </summary>
+        public Vector3 RightAxis { get; private set; }
 
         /// <summary>
         /// 角色当前是否在地面上。
@@ -142,18 +140,11 @@ namespace DWHITE
             _rb = GetComponent<Rigidbody>();
             _playerInput = GetComponent<PlayerInput>();
             _cameraController = GetComponent<PlayerView>();
-            if (transform.childCount > 0)
-            {
-                _camOrientation = transform.GetChild(0);
-            }
 
             // 配置Rigidbody
             _rb.useGravity = false;
             _rb.freezeRotation = true;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
-            
-            // 初始化目标旋转
-            _targetRotation = _rb.rotation;
             
             // 加载并验证配置
             LoadAndValidateTuning();
@@ -168,36 +159,35 @@ namespace DWHITE
         private void Update()
         {
             HandleInput();
-        }
-
-        private void FixedUpdate()
+        }        private void FixedUpdate()
         {
             if (_tuning == null) return;
 
-            // 更新重力与状态
-            _gravity = CustomGravity.GetGravity(_rb.position, out _upAxis);
+            // 1. 获取重力并更新状态 (包括地面检测)
+            _gravity = CustomGravity.GetGravity(_rb.position, out _currentUpAxis);
             UpdateState();
+
+            // 2. 平滑更新上方向，这是消除抖动的关键
+            UpdateSmoothedUpAxis();
             
-            // 计算并应用速度
+            // 3. 计算并调整速度
             AdjustVelocity();
             
-            // 执行跳跃
+            // 4. 执行跳跃
             if (_desiredJump)
             {
                 _desiredJump = false;
                 Jump();
             }
 
-            // 应用重力并更新Rigidbody
+            // 5. 应用重力并更新Rigidbody速度
             _velocity += _gravity * Time.fixedDeltaTime;
-            _rb.velocity = _velocity;            // 清理本帧状态并对齐旋转
-            ClearState();
+            _rb.velocity = _velocity;
             
-            // 分离处理：先进行重力对齐，再进行视角旋转对齐
-            AlignToGravity();
-            ApplyViewRotation();
-
-            // 更新动画
+            // 6. 使用全新的统一旋转模型更新角色姿态
+            UpdateRotation();
+            
+            // 7. 更新动画
             UpdateAnimator();
         }
 
@@ -277,11 +267,9 @@ namespace DWHITE
         private void UpdateMovementAxes()
         {
             if (_cameraController == null) return;
-            _forwardAxis = _cameraController.HorizontalForwardDirection;
-            _rightAxis = _cameraController.HorizontalRightDirection;
-        }
-
-        /// <summary>
+            ForwardAxis = _cameraController.HorizontalForwardDirection;
+            RightAxis = _cameraController.HorizontalRightDirection;
+        }        /// <summary>
         /// 根据输入和当前最大速度计算期望速度。
         /// </summary>
         private void UpdateDesiredVelocity()
@@ -289,7 +277,7 @@ namespace DWHITE
             float currentMaxSpeed = GetCurrentMaxSpeed();
             Vector2 moveInput = _playerInput.MoveInput;
             
-            _desiredVelocity = (_rightAxis * moveInput.x + _forwardAxis * moveInput.y) * currentMaxSpeed;
+            _desiredVelocity = (RightAxis * moveInput.x + ForwardAxis * moveInput.y) * currentMaxSpeed;
             _desiredVelocity = Vector3.ClampMagnitude(_desiredVelocity, currentMaxSpeed);
         }
 
@@ -307,9 +295,9 @@ namespace DWHITE
             float baseAcceleration = _onGround ? _tuning.maxGroundAcceleration : _tuning.maxAirAcceleration;
             float acceleration = _isSprinting && _onGround ? baseAcceleration * _tuning.sprintAccelerationMultiplier : baseAcceleration;
             
-            // 将移动轴向投影到地面/接触平面
-            Vector3 xAxis = ProjectDirectionOnPlane(_rightAxis, _contactNormal);
-            Vector3 zAxis = ProjectDirectionOnPlane(_forwardAxis, _contactNormal);
+            // 将移动轴向投影到地面/接触平面            
+            Vector3 xAxis = ProjectDirectionOnPlane(RightAxis, _contactNormal);
+            Vector3 zAxis = ProjectDirectionOnPlane(ForwardAxis, _contactNormal);
 
             // 计算当前在移动平面上的速度
             float currentX = Vector3.Dot(_velocity, xAxis);
@@ -346,7 +334,7 @@ namespace DWHITE
             }
             else if (_coyoteCounter > 0)
             {
-                jumpDirection = _upAxis;
+                jumpDirection = _smoothedUpAxis;
             }
             else
             {
@@ -359,7 +347,7 @@ namespace DWHITE
             float jumpSpeed = Mathf.Sqrt(2f * _gravity.magnitude * _tuning.jumpHeight);
             
             // 混合地面法线和重力上方向，获得更直观的跳跃方向
-            jumpDirection = (jumpDirection + _upAxis).normalized;
+            jumpDirection = (jumpDirection + _smoothedUpAxis).normalized;
             
             // 如果已经在向上移动，减去当前速度以确保跳跃高度一致
             float alignedSpeed = Vector3.Dot(_velocity, jumpDirection);
@@ -373,88 +361,46 @@ namespace DWHITE
             _coyoteCounter = 0;
 
             if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
-        }        /// <summary>
-        /// 处理重力对齐 - 确保角色的Up轴与重力方向对齐
-        /// 这是基础对齐，不涉及视角旋转
-        /// </summary>
-        private void AlignToGravity()
-        {
-            // 获取当前旋转在水平面上的前向方向
-            Vector3 currentForward = Vector3.ProjectOnPlane(_rb.rotation * Vector3.forward, _upAxis).normalized;
-            
-            // 如果当前前向方向无效，使用相机提供的方向作为参考
-            if (currentForward == Vector3.zero)
-            {
-                currentForward = Vector3.ProjectOnPlane(_cameraController.HorizontalForwardDirection, _upAxis).normalized;
-            }
-            
-            // 如果仍然无效，使用世界前向
-            if (currentForward == Vector3.zero)
-            {
-                currentForward = Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
-            }
+        }
 
-            // 创建基于重力的目标旋转（只考虑重力对齐，不考虑视角）
-            Quaternion gravityAlignedRotation = Quaternion.LookRotation(currentForward, _upAxis);
+        #region Rotation & Gravity Alignment (REFACTORED)
+
+        /// <summary>
+        /// 平滑更新角色的"上"方向，以消除落地和重力切换时的抖动。
+        /// </summary>
+        private void UpdateSmoothedUpAxis()
+        {
+            Vector3 targetUpAxis = _onGround ? _contactNormal : _currentUpAxis;
+            float turnSpeed = _onGround ? _tuning.groundedTurnSpeed : _tuning.airborneTurnSpeed;
             
-            // 平滑过渡到重力对齐的旋转
-            _rb.MoveRotation(Quaternion.Slerp(
-                _rb.rotation,
-                gravityAlignedRotation,
-                _tuning.turnResponsiveness * Time.fixedDeltaTime
-            ));
+            _smoothedUpAxis = Vector3.Slerp(_smoothedUpAxis, targetUpAxis, turnSpeed * Time.fixedDeltaTime);
+            _smoothedUpAxis.Normalize();
         }
 
         /// <summary>
-        /// 处理视角旋转对齐 - 在重力对齐的基础上应用视角旋转
-        /// 只影响绕UpAxis的旋转，不干扰重力对齐
+        /// 统一的旋转更新方法。此方法取代了旧的AlignToGravity和ApplyViewRotation。
+        /// 它基于参考坐标系模型，稳定且无万向节死锁。
         /// </summary>
-        private void ApplyViewRotation()
+        private void UpdateRotation()
         {
-            bool shouldApplyRotation = false;
-            Quaternion targetViewRotation = _rb.rotation;
+            // 1. 平滑地更新参考Yaw角度
+            _referenceBodyYaw = Mathf.LerpAngle(
+                _referenceBodyYaw, 
+                _targetReferenceBodyYaw, 
+                _tuning.turnResponsiveness * Time.fixedDeltaTime
+            );
 
-            // 优先处理向量版本的目标方向（来自新的PlayerView）
-            if (_hasTargetYaw)
-            {
-                // 计算目标Yaw旋转，只绕UpAxis
-                Vector3 currentForward = Vector3.ProjectOnPlane(_rb.rotation * Vector3.forward, _upAxis).normalized;
-                Vector3 targetForward = Quaternion.AngleAxis(_targetYaw, _upAxis) * 
-                    Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
-                
-                // 计算需要的Yaw旋转
-                Quaternion yawRotation = Quaternion.FromToRotation(currentForward, targetForward);
-                
-                // 应用Yaw旋转到当前的重力对齐旋转上
-                targetViewRotation = yawRotation * _rb.rotation;
-                shouldApplyRotation = true;
-                
-                _hasTargetYaw = false; // 重置标志
-            }
-            else if (_hasTargetRotation)
-            {
-                // 兼容性支持：处理完整四元数旋转（不推荐，但保留）
-                Vector3 targetForward = _targetRotation * Vector3.forward;
-                Vector3 projectedForward = ProjectDirectionOnPlane(targetForward, _upAxis);
+            // 2. 在参考坐标系中创建纯Yaw旋转 (Y轴为上)
+            Quaternion referenceYawRotation = Quaternion.Euler(0f, _referenceBodyYaw, 0f);
 
-                if (projectedForward != Vector3.zero)
-                {
-                    targetViewRotation = Quaternion.LookRotation(projectedForward, _upAxis);
-                    shouldApplyRotation = true;
-                }
-                
-                _hasTargetRotation = false; // 重置标志
-            }
+            // 3. 计算从参考系到当前重力系的变换
+            Quaternion gravityTransform = Quaternion.FromToRotation(Vector3.up, _smoothedUpAxis);
 
-            // 如果有视角旋转需要应用，进行平滑过渡
-            if (shouldApplyRotation)
-            {
-                _rb.MoveRotation(Quaternion.Slerp(
-                    _rb.rotation,
-                    targetViewRotation,
-                    _tuning.turnResponsiveness * Time.fixedDeltaTime
-                ));
-            }
+            // 4. 将参考Yaw旋转应用重力变换，得到最终的世界旋转
+            Quaternion targetRotation = gravityTransform * referenceYawRotation;
+            
+            // 5. 应用到Rigidbody
+            _rb.MoveRotation(targetRotation);
         }
 
         #endregion
@@ -477,14 +423,10 @@ namespace DWHITE
                 {
                     _jumpPhase = 0;
                 }
-                if (_groundContactCount > 1)
-                {
-                    _contactNormal.Normalize();
-                }
             }
             else
             {
-                _contactNormal = _upAxis;
+                _contactNormal = _smoothedUpAxis; // 在空中时，接触法线就是上方向
             }
 
             UpdateCoyoteTime();
@@ -500,32 +442,32 @@ namespace DWHITE
             _contactNormal = Vector3.zero;
 
             if (Physics.Raycast(
-                _rb.position + _upAxis * _groundCheckOffset,
-                -_upAxis,
+                _rb.position + _smoothedUpAxis * _groundCheckOffset,
+                -_smoothedUpAxis,
                 out RaycastHit hit,
                 _probeDistance,
                 _groundLayer,
                 QueryTriggerInteraction.Ignore
             ))
             {
-                if (Vector3.Dot(_upAxis, hit.normal) >= _minGroundDotProduct)
+                if (Vector3.Dot(_smoothedUpAxis, hit.normal) >= _minGroundDotProduct)
                 {
                     _onGround = true;
                     _contactNormal = hit.normal;
                     _groundNormal = hit.normal;
-                    _onSteep = Vector3.Angle(_upAxis, _groundNormal) > _tuning.maxGroundAngle;
+                    _onSteep = Vector3.Angle(_smoothedUpAxis, _groundNormal) > _tuning.maxGroundAngle;
 
                     // 如果在可行走的地面上，抵消向下的速度以避免弹跳
-                    if (!_onSteep && Vector3.Dot(_velocity, _upAxis) < 0f)
+                    if (!_onSteep && Vector3.Dot(_velocity, _smoothedUpAxis) < 0f)
                     {
-                        _velocity -= _upAxis * Vector3.Dot(_velocity, _upAxis);
+                        _velocity -= _smoothedUpAxis * Vector3.Dot(_velocity, _smoothedUpAxis);
                     }
                 }
             }
 
             if (!_onGround)
             {
-                _groundNormal = _upAxis;
+                _groundNormal = _smoothedUpAxis;
                 _onSteep = false;
             }
 
@@ -543,12 +485,12 @@ namespace DWHITE
                 return false;
             }
 
-            if (!Physics.Raycast(_rb.position, -_upAxis, out RaycastHit hit, _snapProbeDistance, _groundLayer, QueryTriggerInteraction.Ignore))
+            if (!Physics.Raycast(_rb.position, -_smoothedUpAxis, out RaycastHit hit, _snapProbeDistance, _groundLayer, QueryTriggerInteraction.Ignore))
             {
                 return false;
             }
             
-            if (Vector3.Dot(_upAxis, hit.normal) < _minGroundDotProduct)
+            if (Vector3.Dot(_smoothedUpAxis, hit.normal) < _minGroundDotProduct)
             {
                 return false;
             }
@@ -581,18 +523,7 @@ namespace DWHITE
             {
                 _coyoteCounter = _tuning.coyoteFrames;
             }
-        }
-        
-        /// <summary>
-        /// 在FixedUpdate结束时清除瞬时状态。
-        /// </summary>
-        private void ClearState()
-        {
-            _groundContactCount = 0;
-            _contactNormal = Vector3.zero;
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 重置所有状态变量到初始值。
         /// </summary>
         public void ResetState()
@@ -607,6 +538,13 @@ namespace DWHITE
             _isSprinting = false;
             _sprintToggled = false;
             _currentSpeedMultiplier = 1f;
+            
+            // 重置旋转状态
+            _smoothedUpAxis = Vector3.up;
+            _currentUpAxis = Vector3.up;
+            _referenceBodyYaw = transform.eulerAngles.y;
+            _targetReferenceBodyYaw = _referenceBodyYaw;
+            _rb.rotation = Quaternion.Euler(0, _referenceBodyYaw, 0);
         }
 
         #endregion
@@ -655,19 +593,19 @@ namespace DWHITE
         {
             return (direction - normal * Vector3.Dot(direction, normal)).normalized;
         }
-        
-        /// <summary>
+          /// <summary>
         /// 更新Animator中的参数。
         /// </summary>
         private void UpdateAnimator()
         {
             if (_animator != null)
             {
-                float velocityForward = Vector3.Dot(_velocity, _forwardAxis);
-                float velocityStrafe = -Vector3.Dot(_velocity, _rightAxis); // 取反以匹配常见动画BlendTree设置
+                float velocityForward = Vector3.Dot(_velocity, ForwardAxis);
+                float velocityStrafe = Vector3.Dot(_velocity, RightAxis);
                 _animator.SetFloat("velocityForward", velocityForward);
                 _animator.SetFloat("velocityStrafe", velocityStrafe);
                 _animator.SetBool("isSprinting", _isSprinting);
+                _animator.SetBool("isGrounded", _onGround);
             }
         }
         
@@ -680,23 +618,22 @@ namespace DWHITE
             if (!_showDebugGizmos || !Application.isPlaying) return;
 
             // 绘制基础坐标轴
-            Gizmos.color = Color.green;
-            Gizmos.DrawLine(transform.position, transform.position + _upAxis * 2f);
+            Gizmos.color = Color.green;            Gizmos.DrawLine(transform.position, transform.position + _smoothedUpAxis * 2f);
             Gizmos.color = Color.red;
-            Gizmos.DrawLine(transform.position, transform.position + _rightAxis * 2f);
+            Gizmos.DrawLine(transform.position, transform.position + RightAxis * 1.5f);
             Gizmos.color = Color.blue;
-            Gizmos.DrawLine(transform.position, transform.position + _forwardAxis * 2f);
+            Gizmos.DrawLine(transform.position, transform.position + ForwardAxis * 1.5f);
 
             // 绘制速度
             Gizmos.color = Color.yellow;
             Gizmos.DrawLine(transform.position, transform.position + _velocity);
 
             // 绘制地面检测
-            Vector3 groundCheckStart = _rb.position + _upAxis * _groundCheckOffset;
+            Vector3 groundCheckStart = _rb.position + _smoothedUpAxis * _groundCheckOffset;
             Gizmos.color = _onGround ? Color.green : Color.red;
-            Gizmos.DrawLine(groundCheckStart, groundCheckStart - _upAxis * _probeDistance);
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawLine(_rb.position, _rb.position - _upAxis * _snapProbeDistance);
+            Gizmos.DrawLine(groundCheckStart, groundCheckStart - _smoothedUpAxis * (_probeDistance + _groundCheckOffset));
+            Gizmos.color = new Color(1, 1, 0, 0.5f);
+            Gizmos.DrawLine(_rb.position, _rb.position - _smoothedUpAxis * _snapProbeDistance);
 
             // 绘制重力方向
             if (_gravity != Vector3.zero)
@@ -742,9 +679,8 @@ namespace DWHITE
             GUILayout.Space(5);
 
             GUILayout.Label("● Orientation", titleStyle);
-            GUILayout.Label($"Up Axis: {_upAxis:F2}");
-            GUILayout.Label($"Forward Axis: {_forwardAxis:F2}");
-            GUILayout.Label($"Right Axis: {_rightAxis:F2}");
+            GUILayout.Label($"Up Axis: {_smoothedUpAxis:F2}");            // GUILayout.Label($"Forward Axis: {ForwardAxis:F2}");
+            // GUILayout.Label($"Right Axis: {RightAxis:F2}");
             GUILayout.Space(5);
             
             GUILayout.Label("● Gravity", titleStyle);
@@ -754,52 +690,32 @@ namespace DWHITE
             GUILayout.EndVertical();
             GUILayout.EndArea();        }
         
-        #endregion
-
-        #region PlayerView Interaction
-
-        /// <summary>
-        /// 设置目标Yaw角度，只影响绕UpAxis的旋转，保持重力系统的其他旋转分量
-        /// </summary>
-        public void SetTargetYaw(float targetYaw)
-        {
-            _targetYaw = targetYaw;
-            _hasTargetYaw = true;
-        }
+        #endregion        #region PlayerView Interaction (REFACTORED)
         
-        /// <summary>
-        /// 设置目标旋转，由PlayerView调用来控制身体旋转
-        /// </summary>
-        public void SetTargetRotation(Quaternion targetRotation)
-        {
-            _targetRotation = targetRotation;
-            _hasTargetRotation = true;
-        }
-        
-        /// <summary>
-        /// 获取身体当前的旋转，提供给PlayerView用于稳定的计算
-        /// </summary>
         public Quaternion GetBodyRotation()
         {
             return _rb.rotation;
         }
-
+        
         /// <summary>
-        /// 设置目标身体朝向（向量版本），只影响绕UpAxis的旋转
+        /// [重构] PlayerView调用此方法来设置身体的目标朝向。
+        /// 此方法现在将世界空间的目标方向转换为参考坐标系中的目标Yaw角度。
         /// </summary>
-        public void SetTargetYawDirection(Vector3 targetDirection)
+        public void SetTargetYawDirection(Vector3 targetWorldDirection)
         {
-            // 将目标方向投影到水平面
-            Vector3 targetForwardProjected = Vector3.ProjectOnPlane(targetDirection, _upAxis).normalized;
-            if (targetForwardProjected != Vector3.zero)
-            {
-                // 计算目标Yaw角度
-                Vector3 initialForward = Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
-                _targetYaw = Vector3.SignedAngle(initialForward, targetForwardProjected, _upAxis);
-                _hasTargetYaw = true;
-            }
+            // 计算从当前重力系到参考系的逆变换
+            Quaternion inverseGravityTransform = Quaternion.FromToRotation(_smoothedUpAxis, Vector3.up);
+
+            // 将世界空间的目标方向转换到参考空间
+            Vector3 referenceDirection = inverseGravityTransform * targetWorldDirection;
+
+            // 在参考空间中，计算目标方向相对于标准前向(Vector3.forward)的Yaw角度
+            _targetReferenceBodyYaw = Vector3.SignedAngle(Vector3.forward, referenceDirection, Vector3.up);
         }
 
+        // --- 已废弃的方法 ---
+        // public void SetTargetYaw(float targetYaw) { /* 已废弃 */ }
+        // public void SetTargetRotation(Quaternion targetRotation) { /* 已废弃 */ }        
         #endregion
     }
 }

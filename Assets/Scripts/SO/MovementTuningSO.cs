@@ -97,13 +97,19 @@ namespace DWHITE {
 	    
 	    [Tooltip("最大下落速度 (m/s) - 防止过快下落")]
 	    public float maxFallSpeed = 50f;
-	    
-	    [Header("响应性")]
-	    [Tooltip("转向响应速度 - 改变移动方向的灵敏度")]
-	    public float turnResponsiveness = 8f;
-	    
-	    [Tooltip("刹车效果 - 停止移动时的减速倍率")]
-	    public float brakeMultiplier = 2f;
+	      [Header("响应性")]
+    [Tooltip("转向响应速度 - 改变移动方向的灵敏度")]
+    public float turnResponsiveness = 8f;
+    
+    [Tooltip("刹车效果 - 停止移动时的减速倍率")]
+    public float brakeMultiplier = 2f;
+    
+    [Header("姿态对齐 (Pose Alignment)")]
+    [Tooltip("在地面上时，角色身体对齐地面的速度。")]
+    public float groundedTurnSpeed = 15f;
+
+    [Tooltip("在空中时，角色身体对齐重力方向的速度。")]
+    public float airborneTurnSpeed = 10f;
 	      private void OnValidate()
     {
         // 确保所有数值都在合理范围内
@@ -125,6 +131,8 @@ namespace DWHITE {
         maxFallSpeed = Mathf.Max(1f, maxFallSpeed);
         turnResponsiveness = Mathf.Max(0.1f, turnResponsiveness);
         brakeMultiplier = Mathf.Max(0.1f, brakeMultiplier);
+        groundedTurnSpeed = Mathf.Max(0.1f, groundedTurnSpeed);
+        airborneTurnSpeed = Mathf.Max(0.1f, airborneTurnSpeed);
     }
 	}
 }
