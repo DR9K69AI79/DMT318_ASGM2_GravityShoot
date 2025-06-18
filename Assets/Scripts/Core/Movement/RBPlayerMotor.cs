@@ -23,7 +23,9 @@ namespace DWHITE
 
         [Header("调试")]
         [SerializeField] private bool _showDebugInfo = false;
-        [SerializeField] private bool _showDebugGizmos = false;        // 组件引用
+        [SerializeField] private bool _showDebugGizmos = false;        
+        
+        // 组件引用
         private Rigidbody _rb;
         private PlayerInput _playerInput;
         private FPSGravityCamera _cameraController;
@@ -46,6 +48,9 @@ namespace DWHITE
         private int _groundContactCount;
         private int _stepsSinceLastGrounded;
         private int _stepsSinceLastJump;
+        
+        // 角色几何信息
+        private float _characterHeight = 1.8f; // 角色总高度，启动时从碰撞器获取
 
         // 跳跃状态
         private bool _desiredJump;
@@ -82,6 +87,9 @@ namespace DWHITE
             _rb.useGravity = false;
             _rb.freezeRotation = true;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+            // 获取角色高度信息
+            CalculateCharacterDimensions();
 
             // 如果没有指定调参配置，尝试加载默认的
             if (_tuning == null)
@@ -134,6 +142,44 @@ namespace DWHITE
             AlignRotation();
         }
 #endregion
+
+        /// <summary>
+        /// 计算角色几何尺寸
+        /// </summary>
+        private void CalculateCharacterDimensions()
+        {
+            // 尝试从 CharacterController 或 CapsuleCollider 获取高度
+            var charController = GetComponent<CharacterController>();
+            var capsuleCollider = GetComponent<CapsuleCollider>();
+            var boxCollider = GetComponent<BoxCollider>();
+            
+            if (charController != null)
+            {
+                _characterHeight = charController.height;
+            }
+            else if (capsuleCollider != null)
+            {
+                _characterHeight = capsuleCollider.height;
+            }
+            else if (boxCollider != null)
+            {
+                _characterHeight = boxCollider.size.y;
+            }
+            else
+            {
+                // 默认高度
+                _characterHeight = 1.8f;
+                Debug.LogWarning("[RBPlayerMotor] 未找到角色碰撞器，使用默认高度 1.8m");
+            }
+        }
+
+        /// <summary>
+        /// 获取角色脚部位置 - 用于精确的地面检测
+        /// </summary>
+        private Vector3 GetFootPosition()
+        {
+            return _rb.position - _upAxis * (_characterHeight * 0.5f);
+        }
 
         /// <summary>
         /// 处理输入 - 参考 MovingSphere 的输入处理
@@ -208,7 +254,8 @@ namespace DWHITE
         }
 
         /// <summary>
-        /// 地面检测 - 关键差异点2：使用 Raycast 而不是 SphereCast
+        /// 地面检测 - 使用脚部位置进行更精确的检测
+        /// 解决了原版本从 Rigidbody 中心检测导致的误判问题
         /// </summary>
         private bool CheckGround()
         {
@@ -217,9 +264,12 @@ namespace DWHITE
             _groundContactCount = 0;
             _contactNormal = Vector3.zero;
 
+            // 使用脚部位置进行地面检测，避免从身体中心检测造成的误判
+            Vector3 footPosition = GetFootPosition();
+            
             // 使用 Raycast 进行精确地面检测
             if (Physics.Raycast(
-                _rb.position, -_upAxis, out RaycastHit hit,
+                footPosition, -_upAxis, out RaycastHit hit,
                 _probeDistance, _groundLayer, QueryTriggerInteraction.Ignore
             ))
             {
@@ -254,7 +304,8 @@ namespace DWHITE
         }
 
         /// <summary>
-        /// 贴地检测 - 参考 MovingSphere 的 SnapToGround
+        /// 贴地检测 - 使用脚部位置，用于防止小跳跃时的浮空
+        /// 解决了原版本检测位置不准确的问题
         /// </summary>
         private bool SnapToGround()
         {
@@ -269,8 +320,11 @@ namespace DWHITE
                 return false;
             }
 
+            // 使用脚部位置进行贴地检测
+            Vector3 footPosition = GetFootPosition();
+
             if (!Physics.Raycast(
-                _rb.position, -_upAxis, out RaycastHit hit,
+                footPosition, -_upAxis, out RaycastHit hit,
                 _snapProbeDistance, _groundLayer, QueryTriggerInteraction.Ignore
             ))
             {
@@ -426,7 +480,6 @@ namespace DWHITE
 
         /// <summary>
         /// 对齐角色旋转到重力方向
-        /// 关键差异点5：改进的旋转逻辑
         /// </summary>
         private void AlignRotation()
         {
@@ -440,47 +493,16 @@ namespace DWHITE
                 targetRotation,
                 _tuning.turnResponsiveness * Time.fixedDeltaTime
             );
-
-            // 对齐角色模型
-            if (_characterRig != null)
-            {
-                Quaternion rigForward = Quaternion.LookRotation(_cameraController.HorizontalForwardDirection, _upAxis);
-                _characterRig.transform.rotation = Quaternion.Slerp(
-                    _characterRig.transform.rotation,
-                    rigForward,
-                    _tuning.turnResponsiveness * Time.fixedDeltaTime
-                );
-            }
         }
 
         /// <summary>
-        /// 将方向投影到平面上 - 参考 MovingSphere
+        /// 将方向投影到平面上
         /// </summary>
         private Vector3 ProjectDirectionOnPlane(Vector3 direction, Vector3 normal)
         {
             return (direction - normal * Vector3.Dot(direction, normal)).normalized;
         }
 
-        /// <summary>
-        /// 添加冲量
-        /// </summary>
-        public void AddImpulse(Vector3 impulse)
-        {
-            _velocity += impulse;
-        }
-
-        /// <summary>
-        /// 设置调参配置
-        /// </summary>
-        public void SetTuning(MovementTuningSO tuning)
-        {
-            _tuning = tuning;
-            OnValidate();
-        }
-
-        /// <summary>
-        /// 重置玩家状态
-        /// </summary>
         public void ResetState()
         {
             _velocity = Vector3.zero;
@@ -517,13 +539,21 @@ namespace DWHITE
             Gizmos.color = Color.yellow;
             Gizmos.DrawLine(transform.position, transform.position + _velocity);
 
-            // 绘制地面检测
-            Gizmos.color = _onGround ? Color.green : Color.red;
-            Gizmos.DrawLine(transform.position, transform.position - _upAxis * _probeDistance);
+            // 绘制脚部位置和地面检测
+            if (Application.isPlaying)
+            {
+                Vector3 footPos = GetFootPosition();
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawWireSphere(footPos, 0.1f);
+                
+                // 绘制地面检测射线
+                Gizmos.color = _onGround ? Color.green : Color.red;
+                Gizmos.DrawLine(footPos, footPos - _upAxis * _probeDistance);
 
-            // 绘制贴地检测
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(transform.position, transform.position - _upAxis * _snapProbeDistance);
+                // 绘制贴地检测射线
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(footPos, footPos - _upAxis * _snapProbeDistance);
+            }
 
             // 绘制重力
             if (_gravity != Vector3.zero)
@@ -533,24 +563,22 @@ namespace DWHITE
             }
         }
 
-        /// <summary>
-        /// 在编辑器中显示调试信息
-        /// </summary>
         private void OnGUI()
         {
             if (!_showDebugInfo || !Application.isPlaying) return;
             
-            GUILayout.BeginArea(new Rect(10, 10, 300, 600));
+            GUILayout.BeginArea(new Rect(10, 10, 300, 650));
             GUILayout.BeginVertical("box");
             
             // Title
             GUIStyle titleStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-            GUILayout.Label("Player Control Debug (Refactored)", titleStyle);
+            GUILayout.Label("Player Control Debug (Fixed Ground Detection)", titleStyle);
             GUILayout.Space(5);
 
             // Position and Movement
             GUILayout.Label("● Position & Movement", titleStyle);
             GUILayout.Label($"Position: {transform.position:F2}");
+            GUILayout.Label($"Foot Position: {GetFootPosition():F2}");
             GUILayout.Label($"Velocity: {_velocity:F2}");
             GUILayout.Label($"Speed: {_velocity.magnitude:F2} m/s");
             GUILayout.Space(5);
@@ -570,6 +598,13 @@ namespace DWHITE
             GUILayout.Label($"Jump Buffer: {_jumpBufferCounter}");
             GUILayout.Label($"Steps Since Ground: {_stepsSinceLastGrounded}");
             GUILayout.Label($"Steps Since Jump: {_stepsSinceLastJump}");
+            GUILayout.Space(5);
+            
+            // Character Info
+            GUILayout.Label("● Character Info", titleStyle);
+            GUILayout.Label($"Height: {_characterHeight:F2}m");
+            GUILayout.Label($"Probe Distance: {_probeDistance:F2}m");
+            GUILayout.Label($"Snap Distance: {_snapProbeDistance:F2}m");
             GUILayout.Space(5);
             
             // Orientation
