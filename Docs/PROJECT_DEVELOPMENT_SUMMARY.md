@@ -1,5 +1,32 @@
 # GravityShoot 项目开发总结
 
+## 🚀 最新进展 (2025年6月18日)
+
+### PlayerView 重力适配俯仰角限制系统增强 ✅
+**状态**: 已完成  
+**相关文件**: `PlayerView.cs`, `PlayerView_Gravity_Adaptive_Pitch_Limits_Enhanced.md`
+
+**核心实现**:
+1. **动态重力变化检测**: 实时监测PlayerMotor的UpAxis变化，自动触发重新适配
+2. **精确的俯仰角限制**: 完全基于当前重力方向计算，支持任意3D重力环境
+3. **意图保持机制**: 重力变化时尽量保持用户的视角意图，寻找最接近的有效方向
+4. **智能边界处理**: 正确处理±90度极值、零向量投影等特殊情况
+5. **数值稳定性增强**: 使用容差阈值避免浮点精度问题
+
+**技术亮点**:
+- `CheckGravityUpdate()`: 0.01f阈值检测重力变化，避免频繁重计算
+- `IsWithinPitchLimits()`: 完全重写，统一的数学模型确保精确性
+- `CalculateCurrentPitchForGravity()`: 支持在任意重力轴下计算俯仰角
+- 新增公共接口: `ForceGravityUpdate()`, `GetCurrentPitchLimits()`, `GetPitchNormalized()```
+
+**适配场景**:
+- 标准重力环境（向下重力）
+- 球形重力场、旋转重力平台
+- 重力方向的动态/瞬间变化
+- 传送门等复杂重力过渡
+
+---
+
 ## 📋 项目概述
 
 GravityShoot 是一个基于 Unity 的第一人称 3D 游戏项目，核心特色是**可变重力系统**。玩家可以在具有不同重力场的环境中移动，体验独特的空间导航和移动机制。项目采用现代化的 Unity 开发实践，整合了 PhysX 物理引擎和自定义重力系统。

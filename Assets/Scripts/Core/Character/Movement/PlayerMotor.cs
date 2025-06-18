@@ -39,7 +39,7 @@ namespace DWHITE
         // 组件引用
         private Rigidbody _rb;
         private PlayerInput _playerInput;
-        private FPSGravityCamera _cameraController;
+        private PlayerView _cameraController;
         private Transform _camOrientation;
         
         #endregion
@@ -75,7 +75,11 @@ namespace DWHITE
         // 奔跑状态
         private bool _isSprinting;
         private bool _sprintToggled;
-        private float _currentSpeedMultiplier = 1f;
+        private float _currentSpeedMultiplier = 1f;        // 新增：旋转控制相关状态
+        private Quaternion _targetRotation;
+        private bool _hasTargetRotation = false;
+        private float _targetYaw;
+        private bool _hasTargetYaw = false;
         
         #endregion
 
@@ -90,7 +94,14 @@ namespace DWHITE
         /// 角色当前的“上”方向，由重力系统决定。
         /// </summary>
         public Vector3 UpAxis => _upAxis;
+
+        /// <summary>
+        /// 角色当前的“前”方向，由重力系统决定。
+        /// </summary>
+        public Vector3 ForwardAxis => _forwardAxis;
+
         
+
         /// <summary>
         /// 角色当前是否在地面上。
         /// </summary>
@@ -130,7 +141,7 @@ namespace DWHITE
             // 初始化组件引用
             _rb = GetComponent<Rigidbody>();
             _playerInput = GetComponent<PlayerInput>();
-            _cameraController = GetComponent<FPSGravityCamera>();
+            _cameraController = GetComponent<PlayerView>();
             if (transform.childCount > 0)
             {
                 _camOrientation = transform.GetChild(0);
@@ -140,6 +151,9 @@ namespace DWHITE
             _rb.useGravity = false;
             _rb.freezeRotation = true;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
+            
+            // 初始化目标旋转
+            _targetRotation = _rb.rotation;
             
             // 加载并验证配置
             LoadAndValidateTuning();
@@ -176,11 +190,12 @@ namespace DWHITE
 
             // 应用重力并更新Rigidbody
             _velocity += _gravity * Time.fixedDeltaTime;
-            _rb.velocity = _velocity;
-
-            // 清理本帧状态并对齐旋转
+            _rb.velocity = _velocity;            // 清理本帧状态并对齐旋转
             ClearState();
-            AlignRotationToGravity();
+            
+            // 分离处理：先进行重力对齐，再进行视角旋转对齐
+            AlignToGravity();
+            ApplyViewRotation();
 
             // 更新动画
             UpdateAnimator();
@@ -358,26 +373,88 @@ namespace DWHITE
             _coyoteCounter = 0;
 
             if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
-        }
-        
-        /// <summary>
-        /// 平滑地将角色自身的Transform旋转到与当前重力方向对齐。
+        }        /// <summary>
+        /// 处理重力对齐 - 确保角色的Up轴与重力方向对齐
+        /// 这是基础对齐，不涉及视角旋转
         /// </summary>
-        private void AlignRotationToGravity()
+        private void AlignToGravity()
         {
-            Vector3 characterForward = ProjectDirectionOnPlane(transform.forward, _upAxis);
-            if (characterForward == Vector3.zero)
+            // 获取当前旋转在水平面上的前向方向
+            Vector3 currentForward = Vector3.ProjectOnPlane(_rb.rotation * Vector3.forward, _upAxis).normalized;
+            
+            // 如果当前前向方向无效，使用相机提供的方向作为参考
+            if (currentForward == Vector3.zero)
             {
-                // 如果角色完全垂直，使用相机的水平朝向作为参考
-                characterForward = ProjectDirectionOnPlane(_cameraController.transform.forward, _upAxis);
+                currentForward = Vector3.ProjectOnPlane(_cameraController.HorizontalForwardDirection, _upAxis).normalized;
+            }
+            
+            // 如果仍然无效，使用世界前向
+            if (currentForward == Vector3.zero)
+            {
+                currentForward = Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
             }
 
-            Quaternion targetRotation = Quaternion.LookRotation(characterForward, _upAxis);
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation,
-                targetRotation,
+            // 创建基于重力的目标旋转（只考虑重力对齐，不考虑视角）
+            Quaternion gravityAlignedRotation = Quaternion.LookRotation(currentForward, _upAxis);
+            
+            // 平滑过渡到重力对齐的旋转
+            _rb.MoveRotation(Quaternion.Slerp(
+                _rb.rotation,
+                gravityAlignedRotation,
                 _tuning.turnResponsiveness * Time.fixedDeltaTime
-            );
+            ));
+        }
+
+        /// <summary>
+        /// 处理视角旋转对齐 - 在重力对齐的基础上应用视角旋转
+        /// 只影响绕UpAxis的旋转，不干扰重力对齐
+        /// </summary>
+        private void ApplyViewRotation()
+        {
+            bool shouldApplyRotation = false;
+            Quaternion targetViewRotation = _rb.rotation;
+
+            // 优先处理向量版本的目标方向（来自新的PlayerView）
+            if (_hasTargetYaw)
+            {
+                // 计算目标Yaw旋转，只绕UpAxis
+                Vector3 currentForward = Vector3.ProjectOnPlane(_rb.rotation * Vector3.forward, _upAxis).normalized;
+                Vector3 targetForward = Quaternion.AngleAxis(_targetYaw, _upAxis) * 
+                    Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
+                
+                // 计算需要的Yaw旋转
+                Quaternion yawRotation = Quaternion.FromToRotation(currentForward, targetForward);
+                
+                // 应用Yaw旋转到当前的重力对齐旋转上
+                targetViewRotation = yawRotation * _rb.rotation;
+                shouldApplyRotation = true;
+                
+                _hasTargetYaw = false; // 重置标志
+            }
+            else if (_hasTargetRotation)
+            {
+                // 兼容性支持：处理完整四元数旋转（不推荐，但保留）
+                Vector3 targetForward = _targetRotation * Vector3.forward;
+                Vector3 projectedForward = ProjectDirectionOnPlane(targetForward, _upAxis);
+
+                if (projectedForward != Vector3.zero)
+                {
+                    targetViewRotation = Quaternion.LookRotation(projectedForward, _upAxis);
+                    shouldApplyRotation = true;
+                }
+                
+                _hasTargetRotation = false; // 重置标志
+            }
+
+            // 如果有视角旋转需要应用，进行平滑过渡
+            if (shouldApplyRotation)
+            {
+                _rb.MoveRotation(Quaternion.Slerp(
+                    _rb.rotation,
+                    targetViewRotation,
+                    _tuning.turnResponsiveness * Time.fixedDeltaTime
+                ));
+            }
         }
 
         #endregion
@@ -675,9 +752,54 @@ namespace DWHITE
             GUILayout.Label($"Magnitude: {_gravity.magnitude:F2} m/s²");
 
             GUILayout.EndVertical();
-            GUILayout.EndArea();
+            GUILayout.EndArea();        }
+        
+        #endregion
+
+        #region PlayerView Interaction
+
+        /// <summary>
+        /// 设置目标Yaw角度，只影响绕UpAxis的旋转，保持重力系统的其他旋转分量
+        /// </summary>
+        public void SetTargetYaw(float targetYaw)
+        {
+            _targetYaw = targetYaw;
+            _hasTargetYaw = true;
         }
         
+        /// <summary>
+        /// 设置目标旋转，由PlayerView调用来控制身体旋转
+        /// </summary>
+        public void SetTargetRotation(Quaternion targetRotation)
+        {
+            _targetRotation = targetRotation;
+            _hasTargetRotation = true;
+        }
+        
+        /// <summary>
+        /// 获取身体当前的旋转，提供给PlayerView用于稳定的计算
+        /// </summary>
+        public Quaternion GetBodyRotation()
+        {
+            return _rb.rotation;
+        }
+
+        /// <summary>
+        /// 设置目标身体朝向（向量版本），只影响绕UpAxis的旋转
+        /// </summary>
+        public void SetTargetYawDirection(Vector3 targetDirection)
+        {
+            // 将目标方向投影到水平面
+            Vector3 targetForwardProjected = Vector3.ProjectOnPlane(targetDirection, _upAxis).normalized;
+            if (targetForwardProjected != Vector3.zero)
+            {
+                // 计算目标Yaw角度
+                Vector3 initialForward = Vector3.ProjectOnPlane(Vector3.forward, _upAxis).normalized;
+                _targetYaw = Vector3.SignedAngle(initialForward, targetForwardProjected, _upAxis);
+                _hasTargetYaw = true;
+            }
+        }
+
         #endregion
     }
 }
