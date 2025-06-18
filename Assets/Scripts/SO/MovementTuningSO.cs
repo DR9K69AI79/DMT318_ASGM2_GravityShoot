@@ -2,21 +2,47 @@ using UnityEngine;
 
 namespace DWHITE {	
 	/// <summary>
+	/// 奔跑模式枚举
+	/// </summary>
+	public enum SprintMode
+	{
+		/// <summary>按住奔跑键才能奔跑</summary>
+		Hold,
+		/// <summary>切换奔跑状态</summary>
+		Toggle
+	}
+	
+	/// <summary>
 	/// 移动调参配置 - 数据驱动的"手感"设置
 	/// 存放所有移动相关的曲线和常量，让设计师可以在Inspector中直接调整
 	/// </summary>
 	[CreateAssetMenu(fileName = "MovementTuning", menuName = "GravityShoot/Movement Tuning", order = 1)]
 	public class MovementTuningSO : ScriptableObject
-	{
-	    [Header("地面移动")]
-	    [Tooltip("地面加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
-	    public AnimationCurve groundAcceleration = AnimationCurve.EaseInOut(0f, 30f, 1f, 5f);
-	    
-	    [Tooltip("地面最大加速度 (m/s²)")]
-	    public float maxGroundAcceleration = 30f;
-	    
-	    [Tooltip("地面最大移动速度 (m/s)")]
-	    public float maxGroundSpeed = 8f;
+	{    [Header("地面移动")]
+    [Tooltip("地面加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
+    public AnimationCurve groundAcceleration = AnimationCurve.EaseInOut(0f, 30f, 1f, 5f);
+    
+    [Tooltip("地面最大加速度 (m/s²)")]
+    public float maxGroundAcceleration = 30f;
+    
+    [Tooltip("地面最大移动速度 (m/s)")]
+    public float maxGroundSpeed = 8f;
+    
+    [Header("奔跑")]
+    [Tooltip("奔跑速度倍率 - 相对于正常移动速度")]
+    [Range(1.2f, 3f)]
+    public float sprintSpeedMultiplier = 1.8f;
+    
+    [Tooltip("奔跑加速度倍率 - 相对于正常加速度")]
+    [Range(1f, 2f)]
+    public float sprintAccelerationMultiplier = 1.2f;
+    
+    [Tooltip("奔跑模式 - Toggle切换 或 Hold按住")]
+    public SprintMode sprintMode = SprintMode.Hold;
+    
+    [Tooltip("奔跑转换速度 - 从正常速度切换到奔跑速度的平滑度")]
+    [Range(1f, 10f)]
+    public float sprintTransitionSpeed = 5f;
 	    
 	    [Header("空中移动")]
 	    [Tooltip("空中加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
@@ -85,6 +111,9 @@ namespace DWHITE {
         maxAirAcceleration = Mathf.Max(0.1f, maxAirAcceleration);
         maxGroundSpeed = Mathf.Max(0.1f, maxGroundSpeed);
         maxAirSpeed = Mathf.Max(0.1f, maxAirSpeed);
+        sprintSpeedMultiplier = Mathf.Clamp(sprintSpeedMultiplier, 1.2f, 3f);
+        sprintAccelerationMultiplier = Mathf.Clamp(sprintAccelerationMultiplier, 1f, 2f);
+        sprintTransitionSpeed = Mathf.Clamp(sprintTransitionSpeed, 1f, 10f);
         jumpHeight = Mathf.Max(0.1f, jumpHeight);
         jumpSpeed = Mathf.Max(0.1f, jumpSpeed);
         minGroundDotProduct = Mathf.Clamp01(minGroundDotProduct);

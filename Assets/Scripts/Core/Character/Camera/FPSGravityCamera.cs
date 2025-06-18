@@ -11,7 +11,7 @@ namespace DWHITE {
 	    [Header("相机设置")]
 	    [SerializeField] private Transform _camOrientation; // 相机朝向参考
 		[SerializeField] private Transform _characterRig; // 角色模型
-		[SerializeField] private RBPlayerMotor _motor;
+		[SerializeField] private PlayerMotor _motor;
 	    [SerializeField] private Camera _playerCamera;
 	    [SerializeField] private Vector3 _cameraOffset = new Vector3(0, 1.7f, 0);
 	    
@@ -70,7 +70,7 @@ namespace DWHITE {
 	    private void Awake()
 	    {
 	        _playerInput = GetComponent<PlayerInput>();
-	        _motor = GetComponent<RBPlayerMotor>();
+	        _motor = GetComponent<PlayerMotor>();
 	    }
 
 	    private void Start()

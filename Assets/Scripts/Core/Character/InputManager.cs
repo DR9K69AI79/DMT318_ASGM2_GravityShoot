@@ -18,17 +18,18 @@ namespace DWHITE {
 	    
 	    // 自动生成的输入动作
 	    private GravityShoot _inputActions;
-	    
-	    // 当前输入状态
-	    private Vector2 _moveInput;
-	    private Vector2 _lookInput;
-	    private Vector2 _rawLookInput;
-	    private bool _fireHeld;
-	    private bool _jumpHeld;
-	    
-	    // 每帧重置的按下状态
-	    private bool _firePressed;
-	    private bool _jumpPressed;
+	      // 当前输入状态
+		private Vector2 _moveInput;
+		private Vector2 _lookInput;
+		private Vector2 _rawLookInput;
+		private bool _fireHeld;
+		private bool _jumpHeld;
+		private bool _sprintHeld;
+		
+		// 每帧重置的按下状态
+		private bool _firePressed;
+		private bool _jumpPressed;
+		private bool _sprintPressed;
 	    
     #region 输入事件
 	    /// <summary>移动输入事件 (Vector2: WASD 输入)</summary>
@@ -45,9 +46,14 @@ namespace DWHITE {
 	    
 	    /// <summary>开火按下事件 (单帧)</summary>
 	    public static event Action OnFirePressed;
-	    
-	    /// <summary>开火释放事件</summary>
-	    public static event Action OnFireReleased;
+	      /// <summary>开火释放事件</summary>
+		public static event Action OnFireReleased;
+		
+		/// <summary>奔跑按下事件 (单帧)</summary>
+		public static event Action OnSprintPressed;
+		
+		/// <summary>奔跑释放事件</summary>
+		public static event Action OnSprintReleased;
     #endregion
 	    
     #region 属性访问
@@ -68,9 +74,14 @@ namespace DWHITE {
 	    
 	    /// <summary>开火是否被按下 (单帧)</summary>
 	    public bool FirePressed => _firePressed;
-	    
-	    /// <summary>开火是否持续按住</summary>
-	    public bool FireHeld => _fireHeld;
+	      /// <summary>开火是否持续按住</summary>
+		public bool FireHeld => _fireHeld;
+		
+		/// <summary>奔跑是否被按下 (单帧)</summary>
+		public bool SprintPressed => _sprintPressed;
+		
+		/// <summary>奔跑是否持续按住</summary>
+		public bool SprintHeld => _sprintHeld;
 	    
 	    /// <summary>鼠标灵敏度</summary>
 	    public float MouseSensitivity => _mouseSensitivity;
@@ -146,10 +157,13 @@ namespace DWHITE {
 	        // 视角输入
 	        playerActions.Look.performed += OnLookInputReceived;
 	        playerActions.Look.canceled += OnLookInputCanceled;
-	        
-	        // 开火输入
-	        playerActions.Fire.performed += OnFireInputPressed;
-	        playerActions.Fire.canceled += OnFireInputReleased;
+	          // 开火输入
+        playerActions.Fire.performed += OnFireInputPressed;
+        playerActions.Fire.canceled += OnFireInputReleased;
+        
+        // 奔跑输入
+        playerActions.Sprint.performed += OnSprintInputPressed;
+        playerActions.Sprint.canceled += OnSprintInputReleased;
 	    }
 	    
 	    private void CleanupInputSystem()
@@ -170,24 +184,25 @@ namespace DWHITE {
 	
 	        // 分发输入事件
 	        OnMoveInput?.Invoke(_moveInput);
-	        OnLookInput?.Invoke(_lookInput);
-	
-	        // 分发按下事件
-	        if (_firePressed)
-	        {
-	            OnFirePressed?.Invoke();
-	        }
-	        if (_jumpPressed)
-	        {
-	            OnJumpPressed?.Invoke();
-	        }
-	    }
-	
-	    private void ResetFrameInputs()
-	    {
-	        _firePressed = false;
-	        _jumpPressed = false;
-	    }
+	        OnLookInput?.Invoke(_lookInput);        // 分发按下事件
+        if (_firePressed)
+        {
+            OnFirePressed?.Invoke();
+        }
+        if (_jumpPressed)
+        {
+            OnJumpPressed?.Invoke();
+        }
+        if (_sprintPressed)
+        {
+            OnSprintPressed?.Invoke();
+        }
+	    }    private void ResetFrameInputs()
+    {
+        _firePressed = false;
+        _jumpPressed = false;
+        _sprintPressed = false;
+    }
 	    
 	    private Vector2 ApplyDeadZone(Vector2 input)
 	    {
@@ -250,12 +265,24 @@ namespace DWHITE {
 	        _firePressed = true;
 	        OnFirePressed?.Invoke();
 	    }
-	    
-	    private void OnFireInputReleased(InputAction.CallbackContext context)
-	    {
-	        _fireHeld = false;
-	        OnFireReleased?.Invoke();
-	    }
+	      private void OnFireInputReleased(InputAction.CallbackContext context)
+    {
+        _fireHeld = false;
+        OnFireReleased?.Invoke();
+    }
+    
+    private void OnSprintInputPressed(InputAction.CallbackContext context)
+    {
+        _sprintHeld = true;
+        _sprintPressed = true;
+        OnSprintPressed?.Invoke();
+    }
+    
+    private void OnSprintInputReleased(InputAction.CallbackContext context)
+    {
+        _sprintHeld = false;
+        OnSprintReleased?.Invoke();
+    }
     #endregion
 	    
     #region 公共 API
@@ -283,15 +310,16 @@ namespace DWHITE {
 	            _inputActions.Player.Disable();
 	            SetCursorLock(false);
 	            _enableInput = false;
-	            
-	            // 清空当前输入状态
-	            _moveInput = Vector2.zero;
-	            _lookInput = Vector2.zero;
-	            _rawLookInput = Vector2.zero;
-	            _fireHeld = false;
-	            _firePressed = false;
-	            _jumpHeld = false;
-	            _jumpPressed = false;
+	              // 清空当前输入状态
+            _moveInput = Vector2.zero;
+            _lookInput = Vector2.zero;
+            _rawLookInput = Vector2.zero;
+            _fireHeld = false;
+            _firePressed = false;
+            _jumpHeld = false;
+            _jumpPressed = false;
+            _sprintHeld = false;
+            _sprintPressed = false;
 	            
 	            Debug.Log("[InputManager] 输入已禁用");
 	        }

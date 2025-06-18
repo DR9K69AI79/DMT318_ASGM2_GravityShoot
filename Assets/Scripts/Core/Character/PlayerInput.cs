@@ -10,23 +10,23 @@ namespace DWHITE {
 	/// 适用于需要独立输入控制的角色组件
 	/// </summary>
 	public class PlayerInput : MonoBehaviour
-	{
-	    [Header("输入过滤设置")]
-	    [SerializeField] private bool _enableMove = true;
-	    [SerializeField] private bool _enableLook = true;
-	    [SerializeField] private bool _enableFire = true;
+	{    [Header("输入过滤设置")]
+    [SerializeField] private bool _enableMove = true;
+    [SerializeField] private bool _enableLook = true;
+    [SerializeField] private bool _enableFire = true;
+    [SerializeField] private bool _enableSprint = true;
 	    
 	    [Header("调试信息")]
 	    [SerializeField] private bool _showDebugInfo = false;
 	    
 	    // 输入管理器引用
 	    private InputManager _inputManager;
-	    
-	    // 过滤后的输入状态
-	    private Vector2 _filteredMoveInput;
-	    private bool _filteredJumpPressed;
-	    private Vector2 _filteredLookInput;
-	    private bool _filteredFirePressed;
+	      // 过滤后的输入状态
+    private Vector2 _filteredMoveInput;
+    private bool _filteredJumpPressed;
+    private Vector2 _filteredLookInput;
+    private bool _filteredFirePressed;
+    private bool _filteredSprintPressed;
 	    
     #region 输入属性访问
 	    /// <summary>移动输入 (已过滤)</summary>
@@ -43,9 +43,14 @@ namespace DWHITE {
 	    
 	    /// <summary>开火按下 (已过滤，单帧)</summary>
 	    public bool FirePressed => _enableFire ? _filteredFirePressed : false;
-	    
-	    /// <summary>开火持续按住 (已过滤)</summary>
-	    public bool FireHeld => _enableFire && _inputManager != null ? _inputManager.FireHeld : false;
+	      /// <summary>开火持续按住 (已过滤)</summary>
+    public bool FireHeld => _enableFire && _inputManager != null ? _inputManager.FireHeld : false;
+    
+    /// <summary>奔跑按下 (已过滤，单帧)</summary>
+    public bool SprintPressed => _enableSprint ? _filteredSprintPressed : false;
+    
+    /// <summary>奔跑持续按住 (已过滤)</summary>
+    public bool SprintHeld => _enableSprint && _inputManager != null ? _inputManager.SprintHeld : false;
 	    
 	    // 便捷属性访问
 	    /// <summary>鼠标灵敏度</summary>
@@ -90,10 +95,10 @@ namespace DWHITE {
 	    }
 	    
 	    private void Update()
-	    {
-	        // 重置每帧的按下状态
-	        _filteredFirePressed = false;
-	        _filteredJumpPressed = false;
+	    {        // 重置每帧的按下状态
+        _filteredFirePressed = false;
+        _filteredJumpPressed = false;
+        _filteredSprintPressed = false;
 	        
 	        // 调试信息
 	        if (_showDebugInfo)
@@ -110,11 +115,11 @@ namespace DWHITE {
 	            _inputManager = InputManager.Instance;
 	        
 	        if (_inputManager != null)
-	        {
-	            InputManager.OnMoveInput += OnMoveInput;
-	            InputManager.OnJumpPressed += OnJumpPressed;
-	            InputManager.OnLookInput += OnLookInput;
-	            InputManager.OnFirePressed += OnFirePressed;
+	        {            InputManager.OnMoveInput += OnMoveInput;
+            InputManager.OnJumpPressed += OnJumpPressed;
+            InputManager.OnLookInput += OnLookInput;
+            InputManager.OnFirePressed += OnFirePressed;
+            InputManager.OnSprintPressed += OnSprintPressed;
 	            
 	            if (_showDebugInfo)
 	                Debug.Log("[PlayerInput] 已订阅输入事件");
@@ -122,11 +127,11 @@ namespace DWHITE {
 	    }
 	    
 	    private void UnsubscribeFromInputEvents()
-	    {
-	        InputManager.OnMoveInput -= OnMoveInput;
-	        InputManager.OnJumpPressed -= OnJumpPressed;
-	        InputManager.OnLookInput -= OnLookInput;
-	        InputManager.OnFirePressed -= OnFirePressed;
+	    {        InputManager.OnMoveInput -= OnMoveInput;
+        InputManager.OnJumpPressed -= OnJumpPressed;
+        InputManager.OnLookInput -= OnLookInput;
+        InputManager.OnFirePressed -= OnFirePressed;
+        InputManager.OnSprintPressed -= OnSprintPressed;
 	        
 	        if (_showDebugInfo)
 	            Debug.Log("[PlayerInput] 已取消订阅输入事件");
@@ -148,31 +153,47 @@ namespace DWHITE {
 	    {
 	        _filteredLookInput = input;
 	    }
-	    
-	    private void OnFirePressed()
-	    {
-	        _filteredFirePressed = true;
-	    }
+	      private void OnFirePressed()
+    {
+        _filteredFirePressed = true;
+    }
+    
+    private void OnSprintPressed()
+    {
+        _filteredSprintPressed = true;
+    }
     #endregion
 	    
-    #region 公共方法
-	    /// <summary>
-	    /// 启用/禁用特定输入类型
-	    /// </summary>
-	    /// <param name="move">移动输入</param>
-	    /// <param name="look">视角输入</param>
-	    /// <param name="fire">开火输入</param>
-	    public void SetInputEnabled(bool move, bool look, bool fire)
-	    {
-	        _enableMove = move;
-	        _enableLook = look;
-	        _enableFire = fire;
-	        
-	        if (_showDebugInfo)
-	        {
-	            Debug.Log($"[PlayerInput] 输入设置 - Move: {move}, Look: {look}, Fire: {fire}");
-	        }
-	    }
+    #region 公共方法    /// <summary>
+    /// 启用/禁用特定输入类型
+    /// </summary>
+    /// <param name="move">移动输入</param>
+    /// <param name="look">视角输入</param>
+    /// <param name="fire">开火输入</param>
+    /// <param name="sprint">奔跑输入</param>
+    public void SetInputEnabled(bool move, bool look, bool fire, bool sprint = true)
+    {
+        _enableMove = move;
+        _enableLook = look;
+        _enableFire = fire;
+        _enableSprint = sprint;
+        
+        if (_showDebugInfo)
+        {
+            Debug.Log($"[PlayerInput] 输入设置 - Move: {move}, Look: {look}, Fire: {fire}, Sprint: {sprint}");
+        }
+    }
+    
+    /// <summary>
+    /// 启用/禁用特定输入类型（重载保持兼容性）
+    /// </summary>
+    /// <param name="move">移动输入</param>
+    /// <param name="look">视角输入</param>
+    /// <param name="fire">开火输入</param>
+    public void SetInputEnabled(bool move, bool look, bool fire)
+    {
+        SetInputEnabled(move, look, fire, true);
+    }
 	    
 	    /// <summary>
 	    /// 启用/禁用移动输入
@@ -193,16 +214,25 @@ namespace DWHITE {
 	        if (_showDebugInfo)
 	            Debug.Log($"[PlayerInput] 视角输入: {enabled}");
 	    }
-	    
-	    /// <summary>
-	    /// 启用/禁用开火输入
-	    /// </summary>
-	    public void SetFireEnabled(bool enabled)
-	    {
-	        _enableFire = enabled;
-	        if (_showDebugInfo)
-	            Debug.Log($"[PlayerInput] 开火输入: {enabled}");
-	    }
+	      /// <summary>
+    /// 启用/禁用开火输入
+    /// </summary>
+    public void SetFireEnabled(bool enabled)
+    {
+        _enableFire = enabled;
+        if (_showDebugInfo)
+            Debug.Log($"[PlayerInput] 开火输入: {enabled}");
+    }
+    
+    /// <summary>
+    /// 启用/禁用奔跑输入
+    /// </summary>
+    public void SetSprintEnabled(bool enabled)
+    {
+        _enableSprint = enabled;
+        if (_showDebugInfo)
+            Debug.Log($"[PlayerInput] 奔跑输入: {enabled}");
+    }
 	    
 	    /// <summary>
 	    /// 设置鼠标灵敏度（委托给InputManager）
@@ -263,14 +293,13 @@ namespace DWHITE {
 	    {
 	        return _inputManager != null ? _inputManager.GetAvailableControlSchemes() : new string[0];
 	    }
-	    
-	    /// <summary>
-	    /// 临时启用/禁用所有输入
-	    /// </summary>
-	    public void SetAllInputEnabled(bool enabled)
-	    {
-	        SetInputEnabled(enabled, enabled, enabled);
-	    }
+	      /// <summary>
+    /// 临时启用/禁用所有输入
+    /// </summary>
+    public void SetAllInputEnabled(bool enabled)
+    {
+        SetInputEnabled(enabled, enabled, enabled, enabled);
+    }
     #endregion
 	    
     #region 调试功能
@@ -294,14 +323,14 @@ namespace DWHITE {
 	        
 	        GUILayout.Label("Player Input Debug", GUI.skin.label);
 	        GUILayout.Space(5);
-	        
-	        GUILayout.Label($"Move Input: {MoveInput}");
-	        GUILayout.Label($"Jump: Pressed={JumpPressed}, Held={JumpHeld}");
-	        GUILayout.Label($"Look Input: {LookInput}");
-	        GUILayout.Label($"Fire: Pressed={FirePressed}, Held={FireHeld}");
-	        GUILayout.Space(5);
-	        
-	        GUILayout.Label($"Filters: Move={_enableMove}, Look={_enableLook}, Fire={_enableFire}");
+	          GUILayout.Label($"Move Input: {MoveInput}");
+        GUILayout.Label($"Jump: Pressed={JumpPressed}, Held={JumpHeld}");
+        GUILayout.Label($"Look Input: {LookInput}");
+        GUILayout.Label($"Fire: Pressed={FirePressed}, Held={FireHeld}");
+        GUILayout.Label($"Sprint: Pressed={SprintPressed}, Held={SprintHeld}");
+        GUILayout.Space(5);
+        
+        GUILayout.Label($"Filters: Move={_enableMove}, Look={_enableLook}, Fire={_enableFire}, Sprint={_enableSprint}");
 	        GUILayout.Label($"Mouse Sensitivity: {MouseSensitivity}");
 	        GUILayout.Label($"Invert Y: {InvertY}");
 	        

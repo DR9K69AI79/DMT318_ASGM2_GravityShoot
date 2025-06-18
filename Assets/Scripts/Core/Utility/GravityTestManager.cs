@@ -22,7 +22,7 @@ namespace DWHITE {
 	    [SerializeField] private Color _gravityTransitionColor = Color.magenta;
 	    [SerializeField] private float _transitionThreshold = 0.1f;
 	    
-	    private RBPlayerMotor _playerMotor;
+	    private PlayerMotor _playerMotor;
 	    private Transform _playerTransform;
 	    
 	    private Vector3 _lastFrameUpAxis = Vector3.up;
@@ -31,7 +31,7 @@ namespace DWHITE {
 	    private void Start()
 	    {
 	        // 查找玩家
-	        _playerMotor = FindObjectOfType<RBPlayerMotor>();
+	        _playerMotor = FindObjectOfType<PlayerMotor>();
 	        if (_playerMotor != null)
 	        {
 	            _playerTransform = _playerMotor.transform;
