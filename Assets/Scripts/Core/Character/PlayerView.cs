@@ -3,20 +3,19 @@
 //   Copyright (c) DWHITE. All rights reserved.
 // </copyright>
 // <summary>
-//   优化说明：
-//   此脚本经过了全面的可读性和可扩展性优化，但未修改任何核心运行逻辑。
-//   主要优化点：
-//   1.  [结构] 使用 #region 对代码进行逻辑分组，使结构更清晰。
-//   2.  [依赖] 使用 [RequireComponent] 明确声明对 PlayerInput 和 PlayerMotor 的硬依赖，增强了组件的健壮性。
-//   3.  [可读性] 引入了常量来替代“魔法数字”（如 Epsilon、输入死区），使代码意图更明确。
-//   4.  [代码复用] 
-//       - 抽象出 GetHeadPosition() 辅助方法，消除了在多个位置重复计算头部位置的代码。
-//       - 合并了 HandleInputWithVectors 和 AddViewKick 中相似的旋转逻辑到 ApplyViewRotation 方法，减少了代码冗余。
-//   5.  [性能与简洁性]
-//       - 使用 Unity 内置的 Quaternion.AngleAxis 替代了自定义的 Rodrigues 旋转公式实现（RotateVectorAroundAxis），更简洁且可能更高效。
-//       - 简化了 UpdateHorizontalDirections 方法的逻辑，使其更直接和健壮。
-//   6.  [注释] 删除了临时性或冗余的注释，保留了核心的 XML 文档注释和对复杂逻辑的必要解释。
-//   7.  [健壮性] 在 ForceGravityUpdate 方法中加入了 TODO 注释，提示其功能需要实现。
+//   优化与修正说明：
+//   此脚本在原优化版基础上，核心修正了重力切换时视角突变的问题。
+//   核心修正点：
+//   1. [状态保持] 在 UpdateGravityTransform 方法中，增加了在重力基变换时保持世界空间姿态的核心逻辑。
+//      当检测到重力方向改变时，脚本会：
+//      a. 缓存变换前的世界空间“瞄准方向”和“身体方向”。
+//      b. 更新重力变换矩阵。
+//      c. 使用新的逆变换矩阵，将缓存的世界空间方向“重投影”回参考坐标系，从而计算出新的参考方向。
+//      这个过程确保了无论重力如何变化，玩家的视觉朝向在切换瞬间都保持绝对连续，彻底消除了旋转突变。
+//   2. [调试增强] 增加了用于验证修正效果的调试日志。当重力发生变化时，会在控制台输出一条信息，
+//      展示变换前和重投影后的世界瞄准方向，它们的向量值应几乎完全相等，从而提供数学上的验证。
+//   3. [代码结构] 将重力切换的核心逻辑包裹在 #region 中，使其意图更加明确。
+//   4. [健壮性] 对重投影后的向量进行了规范化，防止浮点误差累积。
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -27,51 +26,49 @@ namespace DWHITE
     /// <summary>
     /// 基于重力变换矩阵的第一人称视角控制器。
     /// 职责：
-    /// 1. 维护重力变换矩阵，实时同步重力变化。
+    /// 1. 维护重力变换矩阵，实时同步重力变化，并在变换时保持视觉连续性。
     /// 2. 通过变换矩阵处理所有方向向量，确保在任意重力下的逻辑一致性。
     /// 3. 实现头部独立转动和身体平滑跟随的逻辑。
     /// 4. 基于变换后的向量提供准确的移动方向。
     /// </summary>
-    [RequireComponent(typeof(PlayerInput), typeof(PlayerMotor))]
+   
     public class PlayerView : MonoBehaviour
     {
         #region 依赖与配置 (Dependencies & Configuration)
 
         [Header("核心引用")]
-        [Tooltip("玩家输入组件")]
         [SerializeField] private PlayerInput _playerInput;
-        [Tooltip("玩家马达组件，提供重力信息和旋转控制")]
         [SerializeField] private PlayerMotor _motor;
-        [Tooltip("瞄准目标点的Transform，用于精确控制射线和武器朝向")]
         [SerializeField] private Transform _aimTarget;
-        [Tooltip("玩家身体的根Transform，用于旋转和位置参考")]
         [SerializeField] private Transform _playerBody;
 
         [Header("视角控制")]
         [SerializeField] private float _lookSensitivity = 1.0f;
-        [SerializeField] [Range(0f, 90f)] private float _maxPitchUp = 88f;
-        [SerializeField] [Range(0f, 90f)] private float _maxPitchDown = 88f;
+        [SerializeField] private float _maxPitchUp = 88f;
+        [SerializeField] private float _maxPitchDown = 88f;
         [SerializeField] private bool _invertY = false;
 
         [Header("头部/身体 旋转逻辑")]
-        [Tooltip("头部相对于身体可以独立旋转的最大角度")]
         [SerializeField] private float _headYawLimit = 60f;
-        [Tooltip("当头部转动超过限制时，身体跟上旋转的速度")]
         [SerializeField] private float _bodyRotationSpeed = 8f;
-        [Tooltip("身体向头部对齐的速度（当角度差较小时）")]
         [SerializeField] private float _bodyAlignmentSpeed = 0.3f;
-        [Tooltip("开始身体对齐的角度差阈值（相对于头部转动限制的比例）")]
-        [SerializeField] [Range(0.1f, 0.9f)] private float _alignmentThreshold = 0.5f;
-        
-        [Header("AimTarget 设置")]
-        [Tooltip("AimTarget 距离玩家头部的距离")]
+        [SerializeField] private float _alignmentThreshold = 0.5f;
+
+        [Header("瞄准目标")]
         [SerializeField] private float _aimDistance = 10f;
-        [Tooltip("头部相对于玩家根物体的位置偏移")]
         [SerializeField] private Vector3 _headOffset = new Vector3(0, 1.7f, 0);
+
+        [Header("重力响应")]
+        [Tooltip("当重力方向改变时，是否维护头部俯仰与upAxis的相对角度")]
+        [SerializeField] private bool _maintainPitchToUpAxis = false;
+        [Tooltip("俯仰输入阈值，低于此值时激活角度维护功能")]
+        [Range(0.01f, 1f)]
+        [SerializeField] private float _pitchInputThreshold = 0.1f;
 
         [Header("调试")]
         [SerializeField] private bool _showDebugInfo = false;
         [SerializeField] private bool _showDebugGizmos = false;
+        [SerializeField] private bool _logGravityChangeVerification = false;
         
         #endregion
 
@@ -91,12 +88,22 @@ namespace DWHITE
         /// 当前瞄准方向（世界坐标系），已应用重力变换。
         /// </summary>
         public Vector3 CurrentAimDirection => _gravityTransform * _referenceAimDirection;
-        
+
         /// <summary>
         /// 当前身体朝向（世界坐标系），已应用重力变换。
         /// </summary>
         public Vector3 CurrentBodyDirection => _gravityTransform * _referenceBodyDirection;
 
+        /// <summary>
+        /// 当前头部俯仰相对于upAxis的角度（度）。
+        /// </summary>
+        public float CurrentPitchToUpAxis => _pitchAngleToUpAxis;
+
+        /// <summary>
+        /// 是否启用了俯仰角维护功能。
+        /// </summary>
+        public bool IsPitchMaintenanceEnabled => _maintainPitchToUpAxis;
+        
         #endregion
 
         #region 内部状态 (Internal State)
@@ -108,13 +115,15 @@ namespace DWHITE
         private static readonly Vector3 ReferenceGravityUp = Vector3.up; // 绝对参考上方向
         private Quaternion _gravityTransform = Quaternion.identity;      // 从参考重力到当前重力的变换
         private Quaternion _inverseGravityTransform = Quaternion.identity; // 逆变换
-
         // 基于参考坐标系的内部状态（在标准重力下的"意图"方向）
         private Vector3 _referenceAimDirection = Vector3.forward;
         private Vector3 _referenceBodyDirection = Vector3.forward;
         
         // 当前俯仰角（仅用于计算和调试）
-        private float _currentPitch = 0f;
+        private float _currentPitch = 0f;        // 重力响应系统 - 新设计
+        private Vector3 _lastGravityUp = Vector3.up;
+        private float _pitchAngleToUpAxis = 0f;  // 头部俯仰相对于当前upAxis的角度
+        private bool _isGravityResponseActive = false; // 标记重力响应是否正在激活
 
         #endregion
         
@@ -122,26 +131,25 @@ namespace DWHITE
 
         private void Awake()
         {
-            // [RequireComponent] 属性已确保这些组件存在
-            _playerInput = GetComponent<PlayerInput>();
-            _motor = GetComponent<PlayerMotor>();
-        }
-
-        private void Start()
+            // 如果没有在 Inspector 中设置，则自动获取组件
+            if (_playerInput == null) _playerInput = GetComponent<PlayerInput>();
+            if (_motor == null) _motor = GetComponent<PlayerMotor>();
+        }        private void Start()
         {
             _playerInput.SetCursorLock(true);
             
             InitializeGravityTransform();
             InitializeDirections();
-        }
-
-        private void LateUpdate()
+            InitializeGravityResponse();
+        }private void LateUpdate()
         {
             UpdateGravityTransform();
             
             HandleInput();
             
             UpdateBodyRotation();
+            
+            UpdatePitchMaintenance();
             
             UpdateAimTargetPosition();
             
@@ -152,18 +160,19 @@ namespace DWHITE
                 UpdateDebugInfo();
             }
         }
-        
-        private void OnValidate()
+          private void OnValidate()
         {
             // 在编辑器中修改数值时，确保其在有效范围内
             _lookSensitivity = Mathf.Max(0.1f, _lookSensitivity);
             _bodyRotationSpeed = Mathf.Max(0.1f, _bodyRotationSpeed);
             _bodyAlignmentSpeed = Mathf.Clamp(_bodyAlignmentSpeed, 0.05f, 2f);
             _alignmentThreshold = Mathf.Clamp(_alignmentThreshold, 0.1f, 0.9f);
-            _aimDistance = Mathf.Max(1f, _aimDistance);
-            _headYawLimit = Mathf.Clamp(_headYawLimit, 0f, 180f);
+            _aimDistance = Mathf.Max(1f, _aimDistance);            _headYawLimit = Mathf.Clamp(_headYawLimit, 0f, 180f);
             _maxPitchUp = Mathf.Clamp(_maxPitchUp, 0f, 90f);
             _maxPitchDown = Mathf.Clamp(_maxPitchDown, 0f, 90f);
+            
+            // 俯仰角维护参数验证
+            _pitchInputThreshold = Mathf.Clamp(_pitchInputThreshold, 0.01f, 1f);
         }
 
         #endregion
@@ -185,14 +194,15 @@ namespace DWHITE
         {
             _invertY = invert;
         }
-        
-        /// <summary>
+          /// <summary>
         /// 将视角重置为与身体方向一致。
         /// </summary>
         public void ResetView()
         {
             _referenceAimDirection = _referenceBodyDirection;
             _currentPitch = CalculateCurrentPitch(CurrentAimDirection);
+            // 重置俯仰角度状态
+            UpdatePitchAngleToUpAxis();
         }
         
         /// <summary>
@@ -229,13 +239,8 @@ namespace DWHITE
         /// </summary>
         public void ForceGravityUpdate()
         {
-            // TODO: 根据需求实现具体逻辑。
-            // 例如，可以无条件地执行一次重力变换计算，忽略角度阈值。
-            // UpdateGravityTransform(true); // 可选的强制更新参数
-            if (_motor != null)
-            {
-                // 目前为空，但保留接口以备扩展。
-            }
+            // 该方法可用于在非自动检测的情况下强制执行一次完整的重力校准流程。
+            UpdateGravityTransform(true);
         }
         
         /// <summary>
@@ -253,9 +258,9 @@ namespace DWHITE
         {
             if (_currentPitch >= 0)
             {
-                return _maxPitchUp > Epsilon ? _currentPitch / _maxPitchUp : 0f;
+                return _maxPitchUp > Epsilon? _currentPitch / _maxPitchUp : 0f;
             }
-            return _maxPitchDown > Epsilon ? _currentPitch / _maxPitchDown : 0f;
+            return _maxPitchDown > Epsilon? _currentPitch / _maxPitchDown : 0f;
         }
         
         /// <summary>
@@ -285,8 +290,28 @@ namespace DWHITE
                 return 0f;
                 
             return Vector3.SignedAngle(bodyHorizontal, aimHorizontal, currentUp);
+        }        /// <summary>
+        /// 设置俯仰角维护功能的开关状态。
+        /// </summary>
+        /// <param name="enabled">是否启用俯仰角维护。</param>
+        public void SetPitchMaintenanceEnabled(bool enabled)
+        {
+            _maintainPitchToUpAxis = enabled;
+            if (!enabled)
+            {
+                // 禁用时更新当前角度状态
+                UpdatePitchAngleToUpAxis();
+            }
         }
-
+        
+        /// <summary>
+        /// 重置俯仰角度到当前状态。
+        /// </summary>
+        public void ResetPitchAngleToUpAxis()
+        {
+            UpdatePitchAngleToUpAxis();
+        }
+        
         #endregion
 
         #region 核心逻辑 (Core Logic)
@@ -302,20 +327,45 @@ namespace DWHITE
         }
 
         /// <summary>
-        /// 每帧检查并更新重力变换，仅在重力方向发生显著变化时才重新计算。
+        /// 每帧检查并更新重力变换。当重力方向发生显著变化时，执行状态保持逻辑以确保视觉连续性。
         /// </summary>
-        private void UpdateGravityTransform()
+        /// <param name="forceUpdate">如果为 true，则无条件执行更新，忽略角度变化阈值。</param>
+        private void UpdateGravityTransform(bool forceUpdate = false)
         {
             Vector3 currentGravityUp = _motor.UpAxis;
             Quaternion newGravityTransform = Quaternion.FromToRotation(ReferenceGravityUp, currentGravityUp);
 
-            // 仅当角度变化超过阈值时才更新，以节省性能
-            if (Quaternion.Angle(_gravityTransform, newGravityTransform) > 0.1f)
+            // 仅当角度变化超过阈值或被强制时才更新，以节省性能并触发状态保持逻辑
+            if (forceUpdate || Quaternion.Angle(_gravityTransform, newGravityTransform) > 0.1f)
             {
+                #region 重力切换时的姿态保持核心逻辑 (Gravity Transition Logic)
+
+                // 1. [缓存] 在更新重力变换前，保存当前在世界空间中的精确朝向。
+                // 这是"修正前"的状态，也是我们希望在"修正后"保持的状态。
+                Vector3 preChangeWorldAim = CurrentAimDirection;
+                Vector3 preChangeWorldBody = CurrentBodyDirection;
+
+                // 2. [变换] 更新重力变换和其逆矩阵。
                 _gravityTransform = newGravityTransform;
                 _inverseGravityTransform = Quaternion.Inverse(_gravityTransform);
+
+                // 3. [重投影] 使用新的逆变换，将之前缓存的世界空间朝向"投影"回参考坐标系，
+                //    从而计算出能维持原世界朝向的、新的参考向量。
+                _referenceAimDirection = (_inverseGravityTransform * preChangeWorldAim).normalized;
+                _referenceBodyDirection = (_inverseGravityTransform * preChangeWorldBody).normalized;
+                
+                // 4. [验证 - 可选调试]
+                if (_logGravityChangeVerification)
+                {
+                    Vector3 postChangeWorldAim = CurrentAimDirection;
+                    Debug.Log($"<b>[PlayerView] Gravity Change Verified.</b>\n" +
+                              $"Pre-Change World Aim:  {preChangeWorldAim.ToString("F6")}\n" +
+                              $"Post-Change World Aim: {postChangeWorldAim.ToString("F6")}\n" +
+                              $"Magnitude Diff: {(preChangeWorldAim - postChangeWorldAim).magnitude:E2}");
+                }
             }
         }
+        #endregion
 
         /// <summary>
         /// 基于当前身体朝向，初始化所有方向向量。
@@ -328,11 +378,102 @@ namespace DWHITE
             if (_referenceBodyDirection.magnitude < Epsilon)
             {
                 _referenceBodyDirection = Vector3.forward; // 安全回退
-            }
-
-            // 初始时，视角与身体朝向一致
+            }            // 初始时，视角与身体朝向一致
             ResetView();
             UpdateHorizontalDirections();
+        }        /// <summary>
+        /// 初始化重力响应系统。
+        /// </summary>
+        private void InitializeGravityResponse()
+        {
+            _lastGravityUp = _motor.UpAxis;
+            // 初始化俯仰角度：计算当前瞄准方向相对于upAxis的角度
+            UpdatePitchAngleToUpAxis();        }
+
+        /// <summary>
+        /// 更新俯仰角相对于upAxis的角度。
+        /// </summary>
+        private void UpdatePitchAngleToUpAxis()
+        {
+            Vector3 currentUp = _motor.UpAxis;
+            Vector3 aimDirection = CurrentAimDirection;
+            
+            // 计算瞄准方向在当前重力平面上的投影
+            Vector3 horizontalAim = Vector3.ProjectOnPlane(aimDirection, currentUp).normalized;
+            
+            if (horizontalAim.magnitude > Epsilon)
+            {
+                // 计算俯仰角：从水平方向到瞄准方向的角度
+                Vector3 rightAxis = Vector3.Cross(horizontalAim, currentUp).normalized;
+                _pitchAngleToUpAxis = Vector3.SignedAngle(horizontalAim, aimDirection, rightAxis);
+            }
+            else
+            {
+                // 如果是垂直瞄准，直接设置为90度或-90度
+                _pitchAngleToUpAxis = Vector3.Dot(aimDirection, currentUp) > 0 ? 90f : -90f;
+            }
+        }
+
+        /// <summary>
+        /// 俯仰角维护逻辑：当重力变化且俯仰输入很小时，独立维护俯仰角度。
+        /// 核心：不修改任何旋转信息，只计算和维护角度值。
+        /// </summary>
+        private void UpdatePitchMaintenance()
+        {
+            Vector3 currentGravityUp = _motor.UpAxis;
+            Vector2 lookInput = _playerInput.LookInput;
+            float pitchInput = _invertY ? lookInput.y : -lookInput.y;
+
+            // 检测重力变化
+            bool gravityChanged = Vector3.Angle(_lastGravityUp, currentGravityUp) > 0.1f;
+            bool lowPitchInput = Mathf.Abs(pitchInput) < _pitchInputThreshold;
+
+            if (!_maintainPitchToUpAxis)
+            {
+                // 俯仰角维护关闭：正常更新俯仰角度
+                UpdatePitchAngleToUpAxis();
+                _lastGravityUp = currentGravityUp;
+                _isGravityResponseActive = false;
+                return;
+            }
+
+            // 检查是否应该激活俯仰角维护
+            if (gravityChanged && lowPitchInput)
+            {
+                // 重力变化且俯仰输入很小：激活维护模式，保持 _pitchAngleToUpAxis 不变
+                _isGravityResponseActive = true;
+
+                if (_logGravityChangeVerification)
+                {
+                    Debug.Log($"[PlayerView] 俯仰角维护：保持角度 {_pitchAngleToUpAxis:F1}°, " +
+                             $"重力变化 {Vector3.Angle(_lastGravityUp, currentGravityUp):F1}°");
+                }
+
+                _lastGravityUp = currentGravityUp;
+                // 关键：不调用UpdatePitchAngleToUpAxis()，保持角度不变
+            }
+            else if (Mathf.Abs(pitchInput) > _pitchInputThreshold)
+            {
+                // 有明显的俯仰输入：退出维护模式，正常更新角度
+                _isGravityResponseActive = false;
+                UpdatePitchAngleToUpAxis();
+
+                if (gravityChanged)
+                {
+                    _lastGravityUp = currentGravityUp;
+                }
+            }
+            else if (!_isGravityResponseActive)
+            {
+                // 维护模式未激活，正常更新角度
+                UpdatePitchAngleToUpAxis();
+
+                if (gravityChanged)
+                {
+                    _lastGravityUp = currentGravityUp;
+                }
+            }
+            // 如果维护模式激活且没有明显输入，保持角度不变
         }
 
         /// <summary>
@@ -341,7 +482,7 @@ namespace DWHITE
         private void HandleInput()
         {
             Vector2 lookInput = _playerInput.LookInput * (_lookSensitivity * Time.deltaTime);
-            float pitchDelta = _invertY ? lookInput.y : -lookInput.y;
+            float pitchDelta = _invertY? lookInput.y : -lookInput.y;
             ApplyViewRotation(lookInput.x, pitchDelta);
         }
 
@@ -353,17 +494,19 @@ namespace DWHITE
             // 水平旋转 (Yaw)
             if (Mathf.Abs(yawDelta) > Epsilon)
             {
-                // 使用 Unity 内置方法，更简洁高效
+                // 在参考系中绕标准上方向旋转
                 _referenceAimDirection = Quaternion.AngleAxis(yawDelta, ReferenceGravityUp) * _referenceAimDirection;
             }
 
             // 垂直旋转 (Pitch)
             if (Mathf.Abs(pitchDelta) > Epsilon)
             {
+                // 计算参考系中的右方向轴
                 Vector3 refRight = Vector3.Cross(ReferenceGravityUp, _referenceAimDirection).normalized;
                 Vector3 potentialNewDir = Quaternion.AngleAxis(pitchDelta, refRight) * _referenceAimDirection;
 
-                // 在应用旋转前，检查是否会超出俯仰角限制
+                // 在应用旋转前，检查是否会超出俯仰角限制。
+                // 注意：此检查在世界空间中进行，以确保其在任意重力下都正确。
                 if (IsWithinPitchLimits(_gravityTransform * potentialNewDir))
                 {
                     _referenceAimDirection = potentialNewDir;
@@ -371,7 +514,15 @@ namespace DWHITE
             }
 
             _referenceAimDirection.Normalize();
+            
+            // 更新当前俯仰角，但要考虑重力响应状态
             _currentPitch = CalculateCurrentPitch(CurrentAimDirection);
+
+              // 如果有俯仰输入且俯仰角维护开启，更新维护的角度
+            if (_maintainPitchToUpAxis && Mathf.Abs(pitchDelta) > Epsilon)
+            {
+                UpdatePitchAngleToUpAxis();
+            }
         }
         
         /// <summary>
@@ -394,14 +545,15 @@ namespace DWHITE
             if (Mathf.Abs(angleDiff) > _headYawLimit)
             {
                 float overflowAngle = angleDiff - Mathf.Sign(angleDiff) * _headYawLimit;
-                float rotationAmount = overflowAngle * _bodyRotationSpeed * Time.deltaTime;
+                // 使用更平滑的插值方式来计算旋转量
+                float rotationAmount = Mathf.Lerp(0, overflowAngle, _bodyRotationSpeed * Time.deltaTime);
                 Vector3 newBodyDirWorld = Quaternion.AngleAxis(rotationAmount, currentUp) * bodyHorizontal;
                 
                 _referenceBodyDirection = (_inverseGravityTransform * newBodyDirWorld).normalized;
                 _motor.SetTargetYawDirection(newBodyDirWorld);
             }
             // 当角度差小于一定阈值时，身体缓慢对齐头部
-            else if (Mathf.Abs(angleDiff) < _headYawLimit * _alignmentThreshold)
+            else if (Mathf.Abs(angleDiff) > Epsilon && Mathf.Abs(angleDiff) < _headYawLimit * _alignmentThreshold)
             {
                 float alignAmount = _bodyRotationSpeed * _bodyAlignmentSpeed * Time.deltaTime;
                 Vector3 newBodyDirWorld = Vector3.Slerp(bodyHorizontal, aimHorizontal, alignAmount).normalized;
@@ -417,8 +569,12 @@ namespace DWHITE
         private void UpdateAimTargetPosition()
         {
             if (_aimTarget == null) return;
-            
-            _aimTarget.position = GetHeadPosition() + CurrentAimDirection * _aimDistance;
+
+            Vector3 headPosition = GetHeadPosition();
+            Vector3 aimDirection = CurrentAimDirection;
+
+            _aimTarget.position = headPosition + aimDirection * _aimDistance;
+            _aimTarget.rotation = Quaternion.LookRotation(aimDirection, _motor.UpAxis);
         }
 
         /// <summary>
@@ -471,9 +627,9 @@ namespace DWHITE
             }
 
             // 计算俯仰角
-            float pitchAngle = Vector3.SignedAngle(directionOnPlane, worldDirection, Vector3.Cross(gravityUp, directionOnPlane));
+            float pitchAngle = Vector3.SignedAngle(directionOnPlane, worldDirection, Vector3.Cross(directionOnPlane, gravityUp));
             
-            return pitchAngle <= _maxPitchUp && pitchAngle >= -_maxPitchDown;
+            return pitchAngle <= _maxPitchUp + Epsilon && pitchAngle >= -_maxPitchDown - Epsilon;
         }
 
         /// <summary>
@@ -486,29 +642,29 @@ namespace DWHITE
 
             if (directionOnPlane.magnitude < Epsilon)
             {
-                return Vector3.Dot(worldDirection, gravityUp) > 0 ? 90f : -90f;
+                return Vector3.Dot(worldDirection, gravityUp) > 0? 90f : -90f;
             }
             
-            return Vector3.SignedAngle(directionOnPlane, worldDirection, Vector3.Cross(gravityUp, directionOnPlane));
+            return Vector3.SignedAngle(directionOnPlane, worldDirection, Vector3.Cross(directionOnPlane, gravityUp));
         }
 
         #endregion
         
         #region 调试 (Debugging)
-        
-        private void UpdateDebugInfo()
+          private void UpdateDebugInfo()
         {
             // 每 30 帧更新一次，避免刷屏
-            if (Time.frameCount % 30 != 0) return;
-
-            var info = $"<b>[PlayerView-GravityAdaptive]</b>\n" +
-                       $"Pitch: {_currentPitch:F1}° (Limits: [{-_maxPitchDown:F0}, +{_maxPitchUp:F0}])\n" +
+            if (Time.frameCount % 30!= 0) return;            var info = $"<b>[PlayerView-GravityAdaptive]</b>\n" +
+                       $"Pitch: {_currentPitch:F1}° (Limits: ↑{_maxPitchUp}° ↓{_maxPitchDown}°)\n" +
                        $"Gravity Up: {_motor.UpAxis:F2}\n" +
                        $"Aim Direction (World): {CurrentAimDirection:F2}\n" +
                        $"Body Direction (World): {CurrentBodyDirection:F2}\n" +
                        $"Head-Body Angle: {GetHeadBodyAngleDifference():F1}°\n" +
                        $"Move Forward: {HorizontalForwardDirection:F2}\n" +
-                       $"Move Right: {HorizontalRightDirection:F2}";
+                       $"Move Right: {HorizontalRightDirection:F2}\n" +                       $"Pitch Maintenance: {(_maintainPitchToUpAxis ? "ON" : "OFF")}\n" +
+                       $"Pitch Maintenance Active: {(_isGravityResponseActive ? "YES" : "NO")}\n" +
+                       $"Pitch to UpAxis: {_pitchAngleToUpAxis:F1}°\n" +
+                       $"Pitch Input Threshold: {_pitchInputThreshold:F2}";
             Debug.Log(info);
         }
         
@@ -516,7 +672,7 @@ namespace DWHITE
         {
             if (!_showDebugGizmos || _playerBody == null) return;
 
-            Vector3 headPos = Application.isPlaying ? GetHeadPosition() : _playerBody.position + _headOffset;
+            Vector3 headPos = Application.isPlaying? GetHeadPosition() : _playerBody.position + _headOffset;
             Vector3 bodyPos = _playerBody.position;
             
             // 瞄准方向 (红色)
@@ -534,7 +690,7 @@ namespace DWHITE
             Gizmos.DrawLine(bodyPos, bodyPos + HorizontalRightDirection * 2f);
             
             // Aim Target (黄色)
-            if (_aimTarget != null)
+            if (_aimTarget!= null)
             {
                 Gizmos.color = Color.yellow;
                 Gizmos.DrawWireSphere(_aimTarget.position, 0.2f);

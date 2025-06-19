@@ -11,12 +11,10 @@ namespace DWHITE
     public class PlayerMotor : MonoBehaviour
     {
         #region Configuration & Dependencies
-        
+
         [Header("核心配置")]
         [Tooltip("包含所有移动调谐参数的ScriptableObject。")]
         [SerializeField] private MovementTuningSO _tuning;
-        [Tooltip("（可选）用于视觉反馈的角色Animator。")]
-        [SerializeField] private Animator _animator;
         [Tooltip("角色视觉模型的根Transform，用于旋转。")]
         [SerializeField] private GameObject _characterRig;
 
@@ -48,13 +46,10 @@ namespace DWHITE
         // 运动状态
         private Vector3 _velocity;
         private Vector3 _desiredVelocity;
-        private Vector3 _gravity;
-
-        // --- 重构后的旋转与坐标系状态 ---
+        private Vector3 _gravity;        // --- 重构后的旋转与坐标系状态 ---
         private Vector3 _currentUpAxis = Vector3.up;     // 当前帧的理论"上"方向（来自重力或地面）
         private Vector3 _smoothedUpAxis = Vector3.up;    // 平滑过渡后的"上"方向，用于所有计算
-        private float _referenceBodyYaw;                 // 在参考坐标系中身体的Yaw角度
-        private float _targetReferenceBodyYaw;           // PlayerView传来的目标Yaw角度
+        private Vector3 _targetWorldDirection = Vector3.forward; // 从PlayerView接收的目标世界方向
 
         // 地面检测状态
         private bool _onGround;
@@ -75,7 +70,7 @@ namespace DWHITE
         private bool _isSprinting;
         private bool _sprintToggled;
         private float _currentSpeedMultiplier = 1f;
-        
+
         #endregion
 
         #region Public Properties
@@ -84,7 +79,7 @@ namespace DWHITE
         /// 角色当前的物理速度。
         /// </summary>
         public Vector3 Velocity => _velocity;
-        
+
         /// <summary>
         /// 角色当前的“上”方向，由重力系统决定。
         /// </summary>
@@ -94,7 +89,7 @@ namespace DWHITE
         /// 角色当前的“前”方向，由重力系统决定。
         /// </summary>
         public Vector3 ForwardAxis { get; private set; }
-        
+
         /// <summary>
         /// 基于相机和当前重力平面的"右"方向。
         /// </summary>
@@ -114,17 +109,17 @@ namespace DWHITE
         /// 角色在地面上的基础移动速度。
         /// </summary>
         public float MoveSpeed => _tuning != null ? _tuning.maxGroundSpeed : 10f;
-        
+
         /// <summary>
         /// 当前使用的移动调参配置。
         /// </summary>
         public MovementTuningSO Tuning => _tuning;
-        
+
         /// <summary>
         /// 角色当前是否在奔跑。
         /// </summary>
         public bool IsSprinting => _isSprinting;
-        
+
         /// <summary>
         /// 当前的速度倍率，用于平滑过渡奔跑状态。
         /// </summary>
@@ -145,11 +140,11 @@ namespace DWHITE
             _rb.useGravity = false;
             _rb.freezeRotation = true;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
-            
+
             // 加载并验证配置
             LoadAndValidateTuning();
         }
-        
+
         private void Start()
         {
             _playerInput.SetCursorLock(true);
@@ -159,7 +154,8 @@ namespace DWHITE
         private void Update()
         {
             HandleInput();
-        }        private void FixedUpdate()
+        }
+        private void FixedUpdate()
         {
             if (_tuning == null) return;
 
@@ -169,10 +165,10 @@ namespace DWHITE
 
             // 2. 平滑更新上方向，这是消除抖动的关键
             UpdateSmoothedUpAxis();
-            
+
             // 3. 计算并调整速度
             AdjustVelocity();
-            
+
             // 4. 执行跳跃
             if (_desiredJump)
             {
@@ -183,12 +179,10 @@ namespace DWHITE
             // 5. 应用重力并更新Rigidbody速度
             _velocity += _gravity * Time.fixedDeltaTime;
             _rb.velocity = _velocity;
-            
+
             // 6. 使用全新的统一旋转模型更新角色姿态
-            UpdateRotation();
-            
-            // 7. 更新动画
-            UpdateAnimator();
+            UpdateRotation();            // 7. 动画更新现在由PlayerAnimationController处理
+            // UpdateAnimator(); // 已移至PlayerAnimationController
         }
 
         private void OnValidate()
@@ -198,7 +192,7 @@ namespace DWHITE
                 _minGroundDotProduct = Mathf.Cos(_tuning.maxGroundAngle * Mathf.Deg2Rad);
             }
         }
-        
+
         #endregion
 
         #region Input Handling
@@ -210,11 +204,11 @@ namespace DWHITE
         {
             HandleSprintInput();
             HandleJumpInput();
-            
+
             UpdateMovementAxes();
             UpdateDesiredVelocity();
         }
-        
+
         /// <summary>
         /// 处理奔跑相关的输入和状态切换。
         /// </summary>
@@ -270,13 +264,13 @@ namespace DWHITE
             ForwardAxis = _cameraController.HorizontalForwardDirection;
             RightAxis = _cameraController.HorizontalRightDirection;
         }        /// <summary>
-        /// 根据输入和当前最大速度计算期望速度。
-        /// </summary>
+                 /// 根据输入和当前最大速度计算期望速度。
+                 /// </summary>
         private void UpdateDesiredVelocity()
         {
             float currentMaxSpeed = GetCurrentMaxSpeed();
             Vector2 moveInput = _playerInput.MoveInput;
-            
+
             _desiredVelocity = (RightAxis * moveInput.x + ForwardAxis * moveInput.y) * currentMaxSpeed;
             _desiredVelocity = Vector3.ClampMagnitude(_desiredVelocity, currentMaxSpeed);
         }
@@ -291,10 +285,10 @@ namespace DWHITE
         private void AdjustVelocity()
         {
             Vector2 moveInput = _playerInput.MoveInput;
-            
+
             float baseAcceleration = _onGround ? _tuning.maxGroundAcceleration : _tuning.maxAirAcceleration;
             float acceleration = _isSprinting && _onGround ? baseAcceleration * _tuning.sprintAccelerationMultiplier : baseAcceleration;
-            
+
             // 将移动轴向投影到地面/接触平面            
             Vector3 xAxis = ProjectDirectionOnPlane(RightAxis, _contactNormal);
             Vector3 zAxis = ProjectDirectionOnPlane(ForwardAxis, _contactNormal);
@@ -343,27 +337,25 @@ namespace DWHITE
 
             _stepsSinceLastJump = 0;
             _jumpPhase += 1;
-            
+
             float jumpSpeed = Mathf.Sqrt(2f * _gravity.magnitude * _tuning.jumpHeight);
-            
+
             // 混合地面法线和重力上方向，获得更直观的跳跃方向
             jumpDirection = (jumpDirection + _smoothedUpAxis).normalized;
-            
+
             // 如果已经在向上移动，减去当前速度以确保跳跃高度一致
             float alignedSpeed = Vector3.Dot(_velocity, jumpDirection);
             if (alignedSpeed > 0f)
             {
                 jumpSpeed = Mathf.Max(jumpSpeed - alignedSpeed, 0f);
             }
-            
+
             _velocity += jumpDirection * jumpSpeed;
             _onGround = false;
-            _coyoteCounter = 0;
-
-            if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
+            _coyoteCounter = 0;            if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
         }
 
-        #region Rotation & Gravity Alignment (REFACTORED)
+        #region Rotation & Gravity Alignment (REBUILT)
 
         /// <summary>
         /// 平滑更新角色的"上"方向，以消除落地和重力切换时的抖动。
@@ -378,35 +370,45 @@ namespace DWHITE
         }
 
         /// <summary>
-        /// 统一的旋转更新方法。此方法取代了旧的AlignToGravity和ApplyViewRotation。
-        /// 它基于参考坐标系模型，稳定且无万向节死锁。
+        /// [V3.1 - 无反馈循环版]
+        /// 统一的旋转更新方法。此版本直接使用世界空间的目标方向，避免了参考系转换和潜在的反馈循环。
         /// </summary>
         private void UpdateRotation()
         {
-            // 1. 平滑地更新参考Yaw角度
-            _referenceBodyYaw = Mathf.LerpAngle(
-                _referenceBodyYaw, 
-                _targetReferenceBodyYaw, 
+            // 1. 确定目标"前"方向：
+            // 将PlayerView传来的世界目标方向，投影到由当前重力定义的水平面上。
+            // 这确保了我们只关心水平朝向，忽略俯仰。
+            Vector3 desiredForward = Vector3.ProjectOnPlane(_targetWorldDirection, _smoothedUpAxis).normalized;
+
+            // 2. 处理奇点情况：
+            // 如果投影后的方向向量过小（意味着目标方向几乎与重力方向平行，例如玩家想朝天或朝地），
+            // 此时无法确定一个明确的"前"方向。为了防止角色旋转错乱，我们保持上一帧的"前"方向。
+            if (desiredForward.sqrMagnitude < 0.001f)
+            {
+                desiredForward = Vector3.ProjectOnPlane(transform.forward, _smoothedUpAxis).normalized;
+            }
+
+            // 3. 计算最终目标旋转：
+            // 使用Quaternion.LookRotation，它能根据"前"和"上"两个方向，创建一个无歧义、无扭转的稳定旋转。
+            // 这就是解决核心问题的关键步骤。
+            Quaternion targetRotation = Quaternion.LookRotation(desiredForward, _smoothedUpAxis);
+            
+            // 4. 平滑地应用旋转：
+            // 使用Slerp（球面线性插值）让当前旋转平滑地过渡到目标旋转，提供流畅的视觉效果。
+            Quaternion newRotation = Quaternion.Slerp(
+                _rb.rotation,
+                targetRotation,
                 _tuning.turnResponsiveness * Time.fixedDeltaTime
             );
 
-            // 2. 在参考坐标系中创建纯Yaw旋转 (Y轴为上)
-            Quaternion referenceYawRotation = Quaternion.Euler(0f, _referenceBodyYaw, 0f);
-
-            // 3. 计算从参考系到当前重力系的变换
-            Quaternion gravityTransform = Quaternion.FromToRotation(Vector3.up, _smoothedUpAxis);
-
-            // 4. 将参考Yaw旋转应用重力变换，得到最终的世界旋转
-            Quaternion targetRotation = gravityTransform * referenceYawRotation;
-            
             // 5. 应用到Rigidbody
-            _rb.MoveRotation(targetRotation);
+            _rb.MoveRotation(newRotation);
         }
 
         #endregion
 
         #region State Management & Ground Check
-        
+
         /// <summary>
         /// 在FixedUpdate的开始阶段更新所有运动状态。
         /// </summary>
@@ -489,7 +491,7 @@ namespace DWHITE
             {
                 return false;
             }
-            
+
             if (Vector3.Dot(_smoothedUpAxis, hit.normal) < _minGroundDotProduct)
             {
                 return false;
@@ -509,7 +511,7 @@ namespace DWHITE
 
             return true;
         }
-        
+
         /// <summary>
         /// 更新土狼时间计数器。
         /// </summary>
@@ -524,8 +526,8 @@ namespace DWHITE
                 _coyoteCounter = _tuning.coyoteFrames;
             }
         }        /// <summary>
-        /// 重置所有状态变量到初始值。
-        /// </summary>
+                 /// 重置所有状态变量到初始值。
+                 /// </summary>
         public void ResetState()
         {
             _velocity = Vector3.zero;
@@ -537,14 +539,11 @@ namespace DWHITE
             _stepsSinceLastJump = 0;
             _isSprinting = false;
             _sprintToggled = false;
-            _currentSpeedMultiplier = 1f;
-            
-            // 重置旋转状态
+            _currentSpeedMultiplier = 1f;            // 重置旋转状态
             _smoothedUpAxis = Vector3.up;
             _currentUpAxis = Vector3.up;
-            _referenceBodyYaw = transform.eulerAngles.y;
-            _targetReferenceBodyYaw = _referenceBodyYaw;
-            _rb.rotation = Quaternion.Euler(0, _referenceBodyYaw, 0);
+            _targetWorldDirection = Vector3.forward;
+            _rb.rotation = Quaternion.identity;
         }
 
         #endregion
@@ -585,30 +584,14 @@ namespace DWHITE
             if (_tuning == null) return 10f;
             return _onGround ? _tuning.maxGroundSpeed * _currentSpeedMultiplier : _tuning.maxAirSpeed;
         }
-        
+
         /// <summary>
         /// 将给定的方向向量投影到一个法线定义的平面上。
         /// </summary>
         private Vector3 ProjectDirectionOnPlane(Vector3 direction, Vector3 normal)
         {
             return (direction - normal * Vector3.Dot(direction, normal)).normalized;
-        }
-          /// <summary>
-        /// 更新Animator中的参数。
-        /// </summary>
-        private void UpdateAnimator()
-        {
-            if (_animator != null)
-            {
-                float velocityForward = Vector3.Dot(_velocity, ForwardAxis);
-                float velocityStrafe = Vector3.Dot(_velocity, RightAxis);
-                _animator.SetFloat("velocityForward", velocityForward);
-                _animator.SetFloat("velocityStrafe", velocityStrafe);
-                _animator.SetBool("isSprinting", _isSprinting);
-                _animator.SetBool("isGrounded", _onGround);
-            }
-        }
-        
+        }       
         #endregion
 
         #region Debugging
@@ -618,7 +601,7 @@ namespace DWHITE
             if (!_showDebugGizmos || !Application.isPlaying) return;
 
             // 绘制基础坐标轴
-            Gizmos.color = Color.green;            Gizmos.DrawLine(transform.position, transform.position + _smoothedUpAxis * 2f);
+            Gizmos.color = Color.green; Gizmos.DrawLine(transform.position, transform.position + _smoothedUpAxis * 2f);
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, transform.position + RightAxis * 1.5f);
             Gizmos.color = Color.blue;
@@ -646,12 +629,12 @@ namespace DWHITE
         private void OnGUI()
         {
             if (!_showDebugInfo || !Application.isPlaying) return;
-            
+
             GUILayout.BeginArea(new Rect(10, 10, 300, 650));
             GUILayout.BeginVertical("box");
-            
+
             GUIStyle titleStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-            
+
             GUILayout.Label("Player Motor Debug", titleStyle);
             GUILayout.Space(5);
 
@@ -659,20 +642,20 @@ namespace DWHITE
             GUILayout.Label($"Velocity: {_velocity:F2} (Magnitude: {_velocity.magnitude:F2})");
             GUILayout.Label($"Desired Velocity: {_desiredVelocity:F2}");
             GUILayout.Space(5);
-              
+
             GUILayout.Label("● Ground State", titleStyle);
             GUILayout.Label($"On Ground: {_onGround}");
             GUILayout.Label($"On Steep: {_onSteep}");
             GUILayout.Label($"Contact Normal: {_contactNormal:F2}");
             GUILayout.Label($"Ground Normal: {_groundNormal:F2}");
             GUILayout.Space(5);
-            
+
             GUILayout.Label("● Jump State", titleStyle);
             GUILayout.Label($"Jump Phase: {_jumpPhase}");
             GUILayout.Label($"Coyote Counter: {_coyoteCounter}");
             GUILayout.Label($"Jump Buffer: {_jumpBufferCounter}");
             GUILayout.Space(5);
-            
+
             GUILayout.Label("● Sprint State", titleStyle);
             GUILayout.Label($"Is Sprinting: {_isSprinting}");
             GUILayout.Label($"Speed Multiplier: {_currentSpeedMultiplier:F2}");
@@ -682,40 +665,31 @@ namespace DWHITE
             GUILayout.Label($"Up Axis: {_smoothedUpAxis:F2}");            // GUILayout.Label($"Forward Axis: {ForwardAxis:F2}");
             // GUILayout.Label($"Right Axis: {RightAxis:F2}");
             GUILayout.Space(5);
-            
+
             GUILayout.Label("● Gravity", titleStyle);
             GUILayout.Label($"Direction: {_gravity.normalized:F2}");
             GUILayout.Label($"Magnitude: {_gravity.magnitude:F2} m/s²");
 
             GUILayout.EndVertical();
-            GUILayout.EndArea();        }
-        
-        #endregion        #region PlayerView Interaction (REFACTORED)
-        
+            GUILayout.EndArea();
+        }
+
+        #endregion        #region PlayerView Interaction
+
         public Quaternion GetBodyRotation()
         {
             return _rb.rotation;
         }
-        
+
         /// <summary>
-        /// [重构] PlayerView调用此方法来设置身体的目标朝向。
-        /// 此方法现在将世界空间的目标方向转换为参考坐标系中的目标Yaw角度。
+        /// PlayerView调用此方法来设置身体的目标朝向（世界坐标系）。
         /// </summary>
         public void SetTargetYawDirection(Vector3 targetWorldDirection)
         {
-            // 计算从当前重力系到参考系的逆变换
-            Quaternion inverseGravityTransform = Quaternion.FromToRotation(_smoothedUpAxis, Vector3.up);
-
-            // 将世界空间的目标方向转换到参考空间
-            Vector3 referenceDirection = inverseGravityTransform * targetWorldDirection;
-
-            // 在参考空间中，计算目标方向相对于标准前向(Vector3.forward)的Yaw角度
-            _targetReferenceBodyYaw = Vector3.SignedAngle(Vector3.forward, referenceDirection, Vector3.up);
+            // 只做一件事：存储目标方向
+            _targetWorldDirection = targetWorldDirection;
         }
 
-        // --- 已废弃的方法 ---
-        // public void SetTargetYaw(float targetYaw) { /* 已废弃 */ }
-        // public void SetTargetRotation(Quaternion targetRotation) { /* 已废弃 */ }        
         #endregion
     }
 }
