@@ -268,6 +268,78 @@ playerController._showPredictionGizmos = true;
 - 实现成就系统
 - 添加排行榜功能
 
+## 快速测试工具
+
+### NetworkTestHelper - 网络测试助手
+**位置**: `Assets/Scripts/Core/Networking/NetworkTestHelper.cs`
+
+**功能**:
+- 自动连接和房间管理
+- 一键玩家生成和测试
+- 实时网络状态显示
+- 多客户端测试支持
+- 网络对象生成测试
+
+**使用方法**:
+1. 在测试场景中添加 NetworkTestHelper 组件
+2. 配置玩家预制体和生成点
+3. 运行场景，使用快捷键或GUI进行测试
+
+```csharp
+// 快捷键操作
+F1 - 快速加入房间
+F2 - 离开房间  
+F3 - 生成玩家
+
+// 代码调用
+NetworkTestHelper testHelper = FindObjectOfType<NetworkTestHelper>();
+testHelper.QuickJoin();        // 快速加入
+testHelper.SpawnTestPlayer();  // 生成测试玩家
+testHelper.SpawnTestNetworkObject(); // 生成测试对象
+```
+
+### NetworkTestSceneSetup - 场景快速配置
+**位置**: `Assets/Scripts/Core/Networking/NetworkTestSceneSetup.cs`
+
+**功能**:
+- 一键创建测试环境
+- 自动生成玩家生成点
+- 配置网络测试助手
+- 设置相机和基础组件
+
+**使用步骤**:
+1. 在空场景中添加 NetworkTestSceneSetup 组件
+2. 设置玩家预制体引用
+3. 点击"设置测试场景"按钮
+4. 系统自动创建完整测试环境
+
+### 多客户端测试流程
+
+#### 本机多开测试设置
+1. **Editor + Build 测试**:
+   ```
+   步骤1: 在Unity Editor中打开测试场景
+   步骤2: Build项目生成可执行文件
+   步骤3: 同时运行Editor和Build版本
+   步骤4: 两个客户端会自动连接到同一房间
+   ```
+
+2. **多Build测试**:
+   ```
+   步骤1: Build多个项目副本到不同文件夹
+   步骤2: 同时运行多个.exe文件
+   步骤3: 使用NetworkTestHelper进行连接测试
+   ```
+
+#### 测试检查清单
+- [ ] 网络连接状态正常
+- [ ] 玩家能够正常生成
+- [ ] 位置和旋转同步正确
+- [ ] 输入响应及时
+- [ ] 网络延迟在可接受范围内
+- [ ] 断线重连功能正常
+- [ ] 多客户端同时操作无冲突
+
 ## 总结
 
 这套网络管理系统为 GravityShoot 项目提供了：

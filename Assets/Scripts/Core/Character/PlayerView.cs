@@ -39,10 +39,12 @@ namespace DWHITE
         [Header("核心引用")]
         [SerializeField] private PlayerInput _playerInput;
         [SerializeField] private PlayerMotor _motor;
+        [SerializeField] private Camera _playerCamera;
         [SerializeField] private Transform _aimTarget;
         [SerializeField] private Transform _playerBody;
 
         [Header("视角控制")]
+        [SerializeField] private float _cameraFov = 90f;
         [SerializeField] private float _lookSensitivity = 1.0f;
         [SerializeField] private float _maxPitchUp = 88f;
         [SerializeField] private float _maxPitchDown = 88f;
@@ -134,14 +136,19 @@ namespace DWHITE
             // 如果没有在 Inspector 中设置，则自动获取组件
             if (_playerInput == null) _playerInput = GetComponent<PlayerInput>();
             if (_motor == null) _motor = GetComponent<PlayerMotor>();
-        }        private void Start()
+            if (_playerCamera == null) _playerCamera = GetComponentInChildren<Camera>();
+        }
+
+        private void Start()
         {
             _playerInput.SetCursorLock(true);
-            
+            InitializeCamera();
             InitializeGravityTransform();
             InitializeDirections();
             InitializeGravityResponse();
-        }private void LateUpdate()
+        }
+
+        private void LateUpdate()
         {
             UpdateGravityTransform();
             
@@ -311,10 +318,19 @@ namespace DWHITE
         {
             UpdatePitchAngleToUpAxis();
         }
-        
+
         #endregion
 
         #region 核心逻辑 (Core Logic)
+
+        /// <summary>
+        /// 初始化摄像机。
+        /// </summary>
+        private void InitializeCamera()
+        {
+            _playerCamera.transform.localPosition = _headOffset;
+            _playerCamera.fieldOfView = _cameraFov;
+        }
 
         /// <summary>
         /// 初始化或更新重力变换。

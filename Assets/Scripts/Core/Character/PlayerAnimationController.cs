@@ -15,6 +15,10 @@ namespace DWHITE
 
         [SerializeField] private Animator _animator;
         [SerializeField] private PlayerStateManager _stateManager;
+        
+        // 网络支持
+        private NetworkPlayerController _networkPlayerController;
+        private bool _isNetworkPlayer;
 
         #endregion
 
@@ -59,9 +63,7 @@ namespace DWHITE
         // 目标动画参数值
         private float _targetVelocity;
         private float _targetVelocityForward;
-        private float _targetVelocityStrafe;
-
-        // 跳跃状态追踪（用于触发器）
+        private float _targetVelocityStrafe;        // 跳跃状态追踪（用于触发器）
         private bool _wasGroundedLastFrame;
 
         #endregion
@@ -76,6 +78,10 @@ namespace DWHITE
                 _animator = GetComponent<Animator>();
             }
             _stateManager = GetComponent<PlayerStateManager>();
+            
+            // 检查是否为网络玩家
+            _networkPlayerController = GetComponent<NetworkPlayerController>();
+            _isNetworkPlayer = _networkPlayerController != null;
         }
 
         private void OnEnable()
@@ -98,10 +104,14 @@ namespace DWHITE
         {
             // 初始化动画状态
             InitializeAnimationState();
-        }
-
-        private void Update()
+        }        private void Update()
         {
+            // 对于远程网络玩家，直接从NetworkPlayerController获取状态
+            if (_isNetworkPlayer && _networkPlayerController != null && !_networkPlayerController.IsLocalPlayer)
+            {
+                UpdateRemotePlayerAnimation();
+            }
+            
             // 平滑更新动画参数
             UpdateAnimationParameters();
         }
@@ -341,6 +351,53 @@ namespace DWHITE
                 GUILayout.Label($"isSprinting: {_animator.GetBool(_isSprintingParam)}");
             }
             GUILayout.EndArea();
+        }
+
+        #endregion
+
+        #region Remote Player Animation
+
+        /// <summary>
+        /// 更新远程玩家动画（直接从网络状态）
+        /// </summary>
+        private void UpdateRemotePlayerAnimation()
+        {
+            if (_networkPlayerController == null || !_networkPlayerController.HasRemotePlayerState()) return;
+            
+            var remoteState = _networkPlayerController.GetRemotePlayerState();
+            
+            // 直接更新目标动画参数
+            _targetVelocity = remoteState.speed;
+            _targetVelocityForward = Vector3.Dot(remoteState.velocity, remoteState.forwardAxis);
+            _targetVelocityStrafe = Vector3.Dot(remoteState.velocity, remoteState.rightAxis);
+            
+            // 立即更新状态参数（不需要平滑过渡）
+            if (_animator != null)
+            {
+                bool wasGrounded = _currentIsGrounded;
+                _currentIsGrounded = remoteState.isGrounded;
+                _currentIsInAir = !_currentIsGrounded;
+                _currentIsSprinting = remoteState.isSprinting;
+                
+                _animator.SetBool(_isGroundedParam, _currentIsGrounded);
+                _animator.SetBool(_isInAirParam, _currentIsInAir);
+                _animator.SetBool(_isSprintingParam, _currentIsSprinting);
+                
+                // 检测跳跃和着地状态变化，触发相应的触发器
+                if (!wasGrounded && _currentIsGrounded)
+                {
+                    // 从空中到地面 = 着地
+                    _animator.SetTrigger(_triggerLandParam);
+                }
+                else if (wasGrounded && !_currentIsGrounded)
+                {
+                    // 从地面到空中 = 跳跃（或掉落）
+                    if (remoteState.isJumping)
+                    {
+                        _animator.SetTrigger(_triggerJumpParam);
+                    }
+                }
+            }
         }
 
         #endregion

@@ -114,7 +114,7 @@ public class AddNamespaceTool : ScriptableWizard {
 				using(TextReader reader = new StringReader(contents))
 				{
 					int index = 0;
-					bool addedNS = false;
+					// bool addedNS = false;
 					while (reader.Peek() != -1)
 					{
 						string line = reader.ReadLine();
