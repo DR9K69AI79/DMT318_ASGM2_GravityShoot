@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 namespace DWHITE {	
 	/// <summary>
@@ -58,26 +59,48 @@ namespace DWHITE {
 	    
 	    /// <summary>输入死区</summary>
 	    public float DeadZone => _inputManager != null ? _inputManager.DeadZone : 0.1f;
-	    
-	    /// <summary>输入是否完全启用</summary>
+	 	    /// <summary>输入是否完全启用</summary>
 	    public bool InputEnabled => _inputManager != null && _inputManager.InputEnabled;
     #endregion
 	    
     #region Unity 生命周期
-	    private void Start()
-	    {
-	        // 获取输入管理器引用
-	        _inputManager = InputManager.Instance;
-	        
-	        if (_inputManager == null)
-	        {
-	            Debug.LogError("[PlayerInput] 无法找到 InputManager 实例！");
-	        }
-	        else if (_showDebugInfo)
-	        {
-	            Debug.Log("[PlayerInput] 已连接到 InputManager");
-	        }
-	    }
+    private void Start()
+    {
+        // 延迟初始化以确保InputManager完全准备好
+        StartCoroutine(DelayedInitialization());
+    }
+    
+    private IEnumerator DelayedInitialization()
+    {
+        // 等待一帧，确保所有Awake调用完成
+        yield return null;
+        
+        // 尝试获取输入管理器引用，最多重试5次
+        int retryCount = 0;
+        while (_inputManager == null && retryCount < 5)
+        {
+            _inputManager = InputManager.Instance;
+            if (_inputManager == null)
+            {
+                yield return new WaitForSeconds(0.1f);
+                retryCount++;
+            }
+        }
+        
+        if (_inputManager == null)
+        {
+            Debug.LogError("[PlayerInput] 无法找到 InputManager 实例！");
+        }
+        else
+        {
+            // 确保事件订阅成功
+            SubscribeToInputEvents();
+            if (_showDebugInfo)
+            {
+                Debug.Log("[PlayerInput] 已连接到 InputManager，事件订阅完成");
+            }
+        }
+    }
 	    
 	    private void OnEnable()
 	    {
@@ -334,6 +357,30 @@ namespace DWHITE {
 	        GUILayout.EndVertical();
 	        GUILayout.EndArea();
 	    }
+    #endregion
+
+    #region 强制重新初始化
+    /// <summary>
+    /// 强制重新初始化输入系统（用于修复初始化失败的情况）
+    /// </summary>
+    public void ForceReinitialize()
+    {
+        if (_showDebugInfo)
+            Debug.Log("[PlayerInput] 强制重新初始化输入系统");
+            
+        // 取消旧的订阅
+        UnsubscribeFromInputEvents();
+        
+        // 重新获取InputManager引用
+        _inputManager = InputManager.Instance;
+        
+        // 重新订阅
+        SubscribeToInputEvents();
+        
+        if (_showDebugInfo)
+            Debug.Log($"[PlayerInput] 重新初始化完成，InputManager状态: {(_inputManager != null ? "已连接" : "未连接")}");
+    }
+
     #endregion
 	}
 }

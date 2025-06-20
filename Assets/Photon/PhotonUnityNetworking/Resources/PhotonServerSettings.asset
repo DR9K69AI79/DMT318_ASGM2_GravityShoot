@@ -52,6 +52,22 @@ MonoBehaviour:
   - RpcLoseBalance
   - RpcSyncRigidbodies
   - RpcSyncRigidbodyVelocities
+  - ActivateBlackHoleRPC
+  - NetworkFire
+  - OnDamageAppliedRPC
+  - OnDamageConfirmedRPC
+  - OnDamageRequestRPC
+  - OnProjectileBounceRPC
+  - OnProjectileDestroyRPC
+  - OnProjectileHitRPC
+  - OnReloadCompletedRPC
+  - OnReloadStartedRPC
+  - OnRemoteFire
+  - OnRemoteWeaponSwitch
+  - OnWeaponFiredRPC
+  - OnWeaponSwitchedRPC
+  - OnProjectileBatchUpdate
+  - OnProjectileDestroyed
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

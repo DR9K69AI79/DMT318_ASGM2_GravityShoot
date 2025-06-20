@@ -46,9 +46,9 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   maxGroundAcceleration: 30
-  maxGroundSpeed: 1.5
+  maxGroundSpeed: 3
   sprintSpeedMultiplier: 2
-  sprintAccelerationMultiplier: 1.2
+  sprintAccelerationMultiplier: 1.5
   sprintMode: 0
   sprintTransitionSpeed: 5
   airAcceleration:
@@ -77,7 +77,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   maxAirAcceleration: 15
   maxAirSpeed: 6
-  jumpHeight: 3
+  jumpHeight: 2
   jumpSpeed: 10
   coyoteFrames: 10
   jumpBufferFrames: 10
@@ -89,7 +89,7 @@ MonoBehaviour:
   stepProbeDistance: 0.5
   gravityMultiplier: 2
   maxFallSpeed: 30
-  turnResponsiveness: 12
+  turnResponsiveness: 20
   brakeMultiplier: 4
   groundedTurnSpeed: 15
   airborneTurnSpeed: 10

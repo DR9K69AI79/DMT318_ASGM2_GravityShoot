@@ -243,8 +243,7 @@ namespace DWHITE
                 Debug.Log("发现已存在的 NetworkManager");
             }
         }
-        
-        private void LogInstructions()
+          private void LogInstructions()
         {
             Debug.Log("=== 网络测试场景使用说明 ===");
             Debug.Log("1. 运行场景后，NetworkTestHelper 会自动连接到 Photon");
@@ -252,8 +251,12 @@ namespace DWHITE
             Debug.Log("   F1 - 快速加入房间");
             Debug.Log("   F2 - 离开房间");
             Debug.Log("   F3 - 生成玩家");
+            Debug.Log("   F4 - 修复跳跃功能 (如果跳跃失效)");
             Debug.Log("3. 或使用屏幕左上角的 GUI 按钮");
             Debug.Log("4. 建议同时运行 Editor 和 Build 版本进行多客户端测试");
+            Debug.Log("🔧 跳跃功能修复说明：");
+            Debug.Log("   - 如果发现无法跳跃，按F4键自动修复");
+            Debug.Log("   - 或者退出房间(F2)重新进入(F1)");
             Debug.Log("========================");
         }
     }

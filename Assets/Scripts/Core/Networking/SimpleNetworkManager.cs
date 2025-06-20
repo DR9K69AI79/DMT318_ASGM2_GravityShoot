@@ -1,6 +1,7 @@
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
+using System.Collections;
 
 namespace DWHITE
 {
@@ -168,8 +169,7 @@ namespace DWHITE
         #endregion
         
         #region Player Management
-        
-        /// <summary>
+          /// <summary>
         /// 生成玩家
         /// </summary>
         private void SpawnPlayer()
@@ -186,7 +186,40 @@ namespace DWHITE
             Vector3 spawnPosition = GetRandomSpawnPosition();
             
             DebugLog($"在位置 {spawnPosition} 生成玩家");
-            PhotonNetwork.Instantiate(playerPrefab.name, spawnPosition, Quaternion.identity);
+            GameObject spawnedPlayer = PhotonNetwork.Instantiate(playerPrefab.name, spawnPosition, Quaternion.identity);
+            
+            // 延迟确保玩家组件正确初始化
+            StartCoroutine(EnsurePlayerInitialization(spawnedPlayer));
+        }
+        
+        /// <summary>
+        /// 确保玩家正确初始化（修复跳跃问题的关键）
+        /// </summary>
+        private System.Collections.IEnumerator EnsurePlayerInitialization(GameObject player)
+        {
+            if (player == null) yield break;
+            
+            // 等待几帧让所有组件完成Awake和Start
+            yield return new WaitForSeconds(0.1f);
+            
+            // 检查并修复PlayerInput初始化
+            PlayerInput playerInput = player.GetComponent<PlayerInput>();
+            if (playerInput != null && !playerInput.InputEnabled)
+            {
+                DebugLog("检测到PlayerInput初始化问题，尝试修复...");
+                playerInput.ForceReinitialize();
+                yield return new WaitForSeconds(0.05f);
+            }
+            
+            // 重置PlayerMotor状态
+            PlayerMotor playerMotor = player.GetComponent<PlayerMotor>();
+            if (playerMotor != null)
+            {
+                playerMotor.ResetState();
+                DebugLog("玩家运动状态已重置");
+            }
+            
+            DebugLog("玩家初始化检查完成");
         }
         
         /// <summary>

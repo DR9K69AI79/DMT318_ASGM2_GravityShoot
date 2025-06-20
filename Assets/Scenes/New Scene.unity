@@ -239,6 +239,7 @@ GameObject:
   m_Component:
   - component: {fileID: 585474378}
   - component: {fileID: 585474377}
+  - component: {fileID: 585474379}
   m_Layer: 0
   m_Name: NetworkDebug
   m_TagString: Untagged
@@ -286,6 +287,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &585474379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585474376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e716c4b0ac224734f84b3646810f6b34, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _enableRealTimeDiagnostic: 1
+  _showDebugGUI: 1
+  _diagnosticInterval: 1
+  _runDiagnosticKey: 290
+  _playerInput: {fileID: 0}
+  _playerMotor: {fileID: 0}
 --- !u!1 &779105224
 GameObject:
   m_ObjectHideFlags: 0
@@ -486,7 +505,7 @@ Transform:
   m_GameObject: {fileID: 1263917166}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.56, z: -25.91}
+  m_LocalPosition: {x: 0, y: 1.56, z: -24.64}
   m_LocalScale: {x: 15, y: 15, z: 15}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -505,8 +524,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _gravity: 9.8
-  _radius: 10
-  _useInverseSquare: 1
+  _radius: 12
+  _useInverseSquare: 0
   _gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!1 &1421976484
 GameObject:
@@ -709,7 +728,7 @@ MonoBehaviour:
   boundaryDistance: {x: 10, y: 2.5, z: 10}
   innerDistance: 0.96
   innerFalloffDistance: 2.5
-  outerDistance: 1
+  outerDistance: 2.98
   outerFalloffDistance: 7
 --- !u!65 &1478067464
 BoxCollider:
@@ -820,12 +839,17 @@ PrefabInstance:
       propertyPath: sceneViewId
       value: 3
       objectReference: {fileID: 0}
-    - target: {fileID: 4190442666986847982, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
+    - target: {fileID: 5616856262654684200, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
         type: 3}
       propertyPath: sceneViewId
       value: 2
       objectReference: {fileID: 0}
-    - target: {fileID: 5616856262654684200, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
+    - target: {fileID: 7794016883736684906, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
+        type: 3}
+      propertyPath: _headOffset.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8122545160001656532, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
         type: 3}
       propertyPath: sceneViewId
       value: 1
@@ -981,6 +1005,7 @@ MonoBehaviour:
   _quickJoinKey: 282
   _quickLeaveKey: 283
   _spawnPlayerKey: 284
+  _fixJumpKey: 285
   _testSyncObject: 0
   _testObjectPrefab: {fileID: 9059368513802852602, guid: 48b1287c9c271664db81bd6c002915dd,
     type: 3}

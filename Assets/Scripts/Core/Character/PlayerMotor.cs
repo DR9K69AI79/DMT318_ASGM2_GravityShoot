@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 namespace DWHITE
 {
@@ -15,8 +16,6 @@ namespace DWHITE
         [Header("核心配置")]
         [Tooltip("包含所有移动调谐参数的ScriptableObject。")]
         [SerializeField] private MovementTuningSO _tuning;
-        [Tooltip("角色视觉模型的根Transform，用于旋转。")]
-        [SerializeField] private GameObject _characterRig;
 
         [Header("地面检测")]
         [Tooltip("定义哪些层被视作“地面”。")]
@@ -143,12 +142,35 @@ namespace DWHITE
 
             // 加载并验证配置
             LoadAndValidateTuning();
+        }        private void Start()
+        {
+            // 延迟设置光标锁定，确保PlayerInput已完成初始化
+            StartCoroutine(DelayedPlayerSetup());
+            ResetState();
         }
 
-        private void Start()
+        private System.Collections.IEnumerator DelayedPlayerSetup()
         {
-            _playerInput.SetCursorLock(true);
-            ResetState();
+            // 等待一帧，确保PlayerInput完成初始化
+            yield return null;
+            
+            // 确保PlayerInput已准备好
+            int waitFrames = 0;
+            while (_playerInput != null && !_playerInput.InputEnabled && waitFrames < 30)
+            {
+                yield return null;
+                waitFrames++;
+            }
+            
+            if (_playerInput != null && _playerInput.InputEnabled)
+            {
+                _playerInput.SetCursorLock(true);
+                if (_showDebugInfo) Debug.Log("[PlayerMotor] 玩家初始化完成，输入系统已就绪");
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerMotor] PlayerInput初始化超时或失败");
+            }
         }
 
         private void Update()
@@ -232,16 +254,22 @@ namespace DWHITE
 
             float targetMultiplier = _isSprinting ? _tuning.sprintSpeedMultiplier : 1f;
             _currentSpeedMultiplier = Mathf.Lerp(_currentSpeedMultiplier, targetMultiplier, _tuning.sprintTransitionSpeed * Time.deltaTime);
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 处理跳跃相关的输入，包括跳跃缓冲。
+        /// 增强了对输入系统状态的检查以避免初始化问题。
         /// </summary>
         private void HandleJumpInput()
         {
+            // 确保PlayerInput已正确初始化
+            if (_playerInput == null || !_playerInput.InputEnabled)
+            {
+                return;
+            }
+
             if (_playerInput.JumpPressed)
             {
                 _jumpBufferCounter = _tuning.jumpBufferFrames;
+                if (_showDebugInfo) Debug.Log("[PlayerMotor] 跳跃输入检测到");
             }
             else if (_jumpBufferCounter > 0)
             {
@@ -252,6 +280,7 @@ namespace DWHITE
             {
                 _desiredJump = true;
                 _jumpBufferCounter = 0;
+                if (_showDebugInfo) Debug.Log("[PlayerMotor] 准备执行跳跃");
             }
         }
 
@@ -352,7 +381,8 @@ namespace DWHITE
 
             _velocity += jumpDirection * jumpSpeed;
             _onGround = false;
-            _coyoteCounter = 0;            if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
+            _coyoteCounter = 0;
+            if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
         }
 
         #region Rotation & Gravity Alignment (REBUILT)

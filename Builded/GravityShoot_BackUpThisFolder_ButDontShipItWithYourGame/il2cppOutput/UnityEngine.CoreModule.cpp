@@ -305,6 +305,7 @@ struct Texture2DArray_t5ADB8D23A8AA2F2F3916F43852194B78E579E6BA;
 struct Texture3D_tDC30A0F19B6055086859D1ABC098D6E6762000E1;
 struct Timer_t763C1D5F5A36087DC92C7DA4D1F8AB578F83AB00;
 struct TimerCallback_t7455CAFACC7054E62879920AFC84C5DA98B8C7CD;
+struct TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39;
 struct Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1;
 struct Type_t;
 struct TypeInferenceRuleAttribute_t39AE4844222814241F6C40EDFFA93F5F3B7D1CFE;
@@ -3094,6 +3095,9 @@ struct SkinnedMeshRenderer_t020C4E8648EA1C4C6BA5C41502919B387E7E1C2E  : public R
 struct Skybox_tB3C6FDB5DCB4633B155B7A80045542B7C3388441  : public Behaviour_t01970CFBBA658497AE30F311C447DB0440BAB7FA
 {
 };
+struct TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39  : public Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF
+{
+};
 struct List_1_tD4E159626B334B064F310AA17B10E63A995D569E_StaticFields
 {
 	Action_1U5BU5D_t56F287C0BA9497656875ACBAA5C22E8872EDE9F8* ___s_emptyArray;
@@ -5168,6 +5172,8 @@ inline void Action_2_Invoke_m728A2437F181FBC56F4D617249B47F513AC9FC43_inline (Ac
 }
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR ScriptableObject_tB3BFDB921A1B1795B38A5417D3B97A89A140436A* QualitySettings_get_INTERNAL_renderPipeline_m56CE0C5A28C158EBE468AA3BC36ABBF509B2B08B (const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void QualitySettings_set_INTERNAL_renderPipeline_m6C6BB9E46C60D7EC12A2752F04ECCB2F52BC0594 (ScriptableObject_tB3BFDB921A1B1795B38A5417D3B97A89A140436A* ___0_value, const RuntimeMethod* method) ;
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060 (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F* ___0_value, const RuntimeMethod* method) ;
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F* ___0_value, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void LineRenderer_SetPosition_Injected_m27450601152034E046A3181A374382A0DE636682 (LineRenderer_tEFEF960672DB69CB14B6D181FAE6292F0CF8B63D* __this, int32_t ___0_index, Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2* ___1_position, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void MaterialPropertyBlock_SetVectorImpl_Injected_m3F860A6FF7908C66A89B280CE69E57D1CFB64875 (MaterialPropertyBlock_t2308669579033A857EFE6E4831909F638B27411D* __this, int32_t ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3* ___1_value, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void MaterialPropertyBlock_SetMatrixImpl_Injected_mF4919556BE38EF8320EF2D4DDB3FDA54EFBC8E16 (MaterialPropertyBlock_t2308669579033A857EFE6E4831909F638B27411D* __this, int32_t ___0_name, Matrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6* ___1_value, const RuntimeMethod* method) ;
@@ -24279,6 +24285,44 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void ImageEffectAllowedInSceneView__ctor_m7EC
 		Attribute__ctor_m79ED1BF1EE36D1E417BA89A0D9F91F8AAD8D19E2(__this, NULL);
 		return;
 	}
+}
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_startColor_m1474AFF43F59009D38FF4EF933ACBEE6D54FA016 (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F ___0_value, const RuntimeMethod* method) 
+{
+	{
+		TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060(__this, (&___0_value), NULL);
+		return;
+	}
+}
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_endColor_m392013339F5C6151B900C76FF8D2D80F1B0F20BE (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F ___0_value, const RuntimeMethod* method) 
+{
+	{
+		TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D(__this, (&___0_value), NULL);
+		return;
+	}
+}
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060 (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F* ___0_value, const RuntimeMethod* method) 
+{
+	typedef void (*TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060_ftn) (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39*, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F*);
+	static TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060_ftn _il2cpp_icall_func;
+	if (!_il2cpp_icall_func)
+	_il2cpp_icall_func = (TrailRenderer_set_startColor_Injected_m6F1A32C11D2B168BB0211AB85C826EA0DDF66060_ftn)il2cpp_codegen_resolve_icall ("UnityEngine.TrailRenderer::set_startColor_Injected(UnityEngine.Color&)");
+	_il2cpp_icall_func(__this, ___0_value);
+}
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39* __this, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F* ___0_value, const RuntimeMethod* method) 
+{
+	typedef void (*TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D_ftn) (TrailRenderer_tF7E185EF383CF4300DFC3E1DE59FA6100B93CA39*, Color_tD001788D726C3A7F1379BEED0260B9591F440C1F*);
+	static TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D_ftn _il2cpp_icall_func;
+	if (!_il2cpp_icall_func)
+	_il2cpp_icall_func = (TrailRenderer_set_endColor_Injected_mF1EB8C50D041FA4FADA979C6BEC0FB426F5E576D_ftn)il2cpp_codegen_resolve_icall ("UnityEngine.TrailRenderer::set_endColor_Injected(UnityEngine.Color&)");
+	_il2cpp_icall_func(__this, ___0_value);
 }
 #ifdef __clang__
 #pragma clang diagnostic pop

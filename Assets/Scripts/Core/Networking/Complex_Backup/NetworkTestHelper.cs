@@ -26,10 +26,10 @@ namespace DWHITE
         [Header("调试选项")]
         [SerializeField] private bool _showConnectionStatus = true;
         [SerializeField] private bool _showRoomInfo = true;
-        [SerializeField] private bool _enableVerboseLogging = true;
-        [SerializeField] private KeyCode _quickJoinKey = KeyCode.F1;
+        [SerializeField] private bool _enableVerboseLogging = true;        [SerializeField] private KeyCode _quickJoinKey = KeyCode.F1;
         [SerializeField] private KeyCode _quickLeaveKey = KeyCode.F2;
         [SerializeField] private KeyCode _spawnPlayerKey = KeyCode.F3;
+        [SerializeField] private KeyCode _fixJumpKey = KeyCode.F4; // 新增：修复跳跃功能快捷键
         
         [Header("网络测试")]
         [SerializeField] private bool _testSyncObject = true;
@@ -126,10 +126,15 @@ namespace DWHITE
             {
                 QuickLeave();
             }
-            
-            if (GUI.Button(new Rect(230, yOffset, 100, 30), "生成玩家"))
+              if (GUI.Button(new Rect(230, yOffset, 100, 30), "生成玩家"))
             {
                 SpawnTestPlayer();
+            }
+            
+            // 新增：修复跳跃按钮
+            if (GUI.Button(new Rect(340, yOffset, 100, 30), "修复跳跃"))
+            {
+                FixJumpFunctionality();
             }
             
             yOffset += 40;
@@ -256,15 +261,16 @@ namespace DWHITE
                 {
                     Log("⚠️ 警告: 生成位置可能无效，使用安全位置");
                     spawnPosition = GetSafeSpawnPosition();
-                }
-                
-                GameObject player = PhotonNetwork.Instantiate(_playerPrefab.name, spawnPosition, Quaternion.identity);
+                }                GameObject player = PhotonNetwork.Instantiate(_playerPrefab.name, spawnPosition, Quaternion.identity);
                 
                 if (player != null)
                 {
                     _spawnedPlayers.Add(player);
                     _hasSpawnedPlayer = true;
                     Log($"✅ 成功生成玩家: {PhotonNetwork.LocalPlayer.NickName} 位置: {spawnPosition}");
+                    
+                    // 启动玩家初始化修复协程
+                    StartCoroutine(FixPlayerInitialization(player));
                 }
                 else
                 {
@@ -384,8 +390,7 @@ namespace DWHITE
         #endregion
         
         #region Private Methods
-        
-        private void HandleInput()
+          private void HandleInput()
         {
             if (Input.GetKeyDown(_quickJoinKey))
             {
@@ -400,6 +405,11 @@ namespace DWHITE
             if (Input.GetKeyDown(_spawnPlayerKey))
             {
                 SpawnTestPlayer();
+            }
+            
+            if (Input.GetKeyDown(_fixJumpKey))
+            {
+                FixJumpFunctionality();
             }
         }
           private void JoinOrCreateTestRoom()
@@ -594,16 +604,16 @@ namespace DWHITE
                 _testSpawnCoroutine = null;
             }
         }
-        
-        public void OnJoinedRoom()
+          public void OnJoinedRoom()
         {
             Log($"成功加入房间: {PhotonNetwork.CurrentRoom.Name}");
             Log($"房间玩家数: {PhotonNetwork.CurrentRoom.PlayerCount}");
             
-            // 自动生成玩家
+            // 自动生成玩家 - 增加延迟确保所有系统初始化完成
             if (_autoSpawnPlayer && !_hasSpawnedPlayer)
             {
-                Invoke(nameof(SpawnTestPlayer), 1f); // 延迟1秒生成
+                Invoke(nameof(SpawnTestPlayer), 2f); // 增加到2秒延迟，确保初始化完成
+                Log("🕐 将在2秒后自动生成玩家，确保所有系统初始化完成");
             }
             
             // 开始测试协程
@@ -665,6 +675,151 @@ namespace DWHITE
         public void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged) { }
         public void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps) { }
         
+        #endregion
+
+        #region 修复玩家初始化问题
+
+        /// <summary>
+        /// 修复玩家初始化问题的协程 - 专门解决跳跃功能失效问题
+        /// </summary>
+        private IEnumerator FixPlayerInitialization(GameObject player)
+        {
+            if (player == null) yield break;
+            
+            // 只对本地玩家进行修复
+            PhotonView pv = player.GetComponent<PhotonView>();
+            if (pv == null || !pv.IsMine)
+            {
+                Log("🔧 跳过非本地玩家的初始化修复");
+                yield break;
+            }
+            
+            Log("🔧 开始修复本地玩家初始化...");
+            
+            // 等待足够的时间让所有组件完成初始化
+            yield return new WaitForSeconds(0.2f);
+            
+            // 获取关键组件
+            PlayerInput playerInput = player.GetComponent<PlayerInput>();
+            PlayerMotor playerMotor = player.GetComponent<PlayerMotor>();
+            
+            // 修复PlayerInput初始化问题
+            if (playerInput != null)
+            {
+                if (!playerInput.InputEnabled)
+                {
+                    Log("🔧 检测到PlayerInput未正确初始化，尝试修复...");
+                    playerInput.ForceReinitialize();
+                    yield return new WaitForSeconds(0.1f);
+                    
+                    if (playerInput.InputEnabled)
+                    {
+                        Log("✅ PlayerInput修复成功");
+                    }
+                    else
+                    {
+                        Log("❌ PlayerInput修复失败");
+                    }
+                }
+                else
+                {
+                    Log("✅ PlayerInput状态正常");
+                }
+            }
+            else
+            {
+                Log("❌ 警告: 玩家对象缺少PlayerInput组件");
+            }
+            
+            // 重置PlayerMotor状态
+            if (playerMotor != null)
+            {
+                playerMotor.ResetState();
+                Log("✅ PlayerMotor状态已重置");
+            }
+            else
+            {
+                Log("❌ 警告: 玩家对象缺少PlayerMotor组件");
+            }
+            
+            // 最终验证：测试跳跃输入是否正常工作
+            yield return new WaitForSeconds(0.1f);
+            StartCoroutine(ValidateJumpFunctionality(playerInput));
+            
+            Log("🔧 玩家初始化修复完成");
+        }
+        
+        /// <summary>
+        /// 验证跳跃功能是否正常工作
+        /// </summary>
+        private IEnumerator ValidateJumpFunctionality(PlayerInput playerInput)
+        {
+            if (playerInput == null) yield break;
+            
+            Log("🧪 开始验证跳跃功能...");
+            
+            // 监控跳跃输入几秒钟
+            float testDuration = 3f;
+            float startTime = Time.time;
+            bool jumpDetected = false;
+            
+            while (Time.time - startTime < testDuration)
+            {
+                if (playerInput.JumpPressed)
+                {
+                    jumpDetected = true;
+                    Log("✅ 跳跃输入检测正常！");
+                    break;
+                }
+                yield return null;
+            }
+            
+            if (!jumpDetected)
+            {
+                Log("⚠️ 在测试期间未检测到跳跃输入。请按空格键测试跳跃功能。");
+                Log("💡 如果跳跃仍不工作，请尝试以下步骤：");
+                Log("   1. 退出房间 (F2)");
+                Log("   2. 重新加入房间 (F1)");
+                Log("   3. 重新生成玩家 (F3)");
+            }
+        }
+
+        /// <summary>
+        /// 手动修复跳跃功能 - 用于解决运行时跳跃失效问题
+        /// </summary>
+        public void FixJumpFunctionality()
+        {
+            if (!PhotonNetwork.InRoom)
+            {
+                Log("❌ 需要在房间中才能修复跳跃功能");
+                return;
+            }
+            
+            // 查找本地玩家对象
+            GameObject localPlayer = null;
+            foreach (GameObject player in _spawnedPlayers)
+            {
+                if (player != null)
+                {
+                    PhotonView pv = player.GetComponent<PhotonView>();
+                    if (pv != null && pv.IsMine)
+                    {
+                        localPlayer = player;
+                        break;
+                    }
+                }
+            }
+            
+            if (localPlayer == null)
+            {
+                Log("❌ 未找到本地玩家，请先生成玩家 (F3)");
+                return;
+            }
+            
+            Log("🔧 开始手动修复跳跃功能...");
+            StartCoroutine(FixPlayerInitialization(localPlayer));
+        }
+
         #endregion
     }
 }

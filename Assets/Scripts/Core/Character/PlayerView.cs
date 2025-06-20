@@ -1,24 +1,3 @@
-// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="PlayerView.cs" company="DWHITE">
-//   Copyright (c) DWHITE. All rights reserved.
-// </copyright>
-// <summary>
-//   优化与修正说明：
-//   此脚本在原优化版基础上，核心修正了重力切换时视角突变的问题。
-//   核心修正点：
-//   1. [状态保持] 在 UpdateGravityTransform 方法中，增加了在重力基变换时保持世界空间姿态的核心逻辑。
-//      当检测到重力方向改变时，脚本会：
-//      a. 缓存变换前的世界空间“瞄准方向”和“身体方向”。
-//      b. 更新重力变换矩阵。
-//      c. 使用新的逆变换矩阵，将缓存的世界空间方向“重投影”回参考坐标系，从而计算出新的参考方向。
-//      这个过程确保了无论重力如何变化，玩家的视觉朝向在切换瞬间都保持绝对连续，彻底消除了旋转突变。
-//   2. [调试增强] 增加了用于验证修正效果的调试日志。当重力发生变化时，会在控制台输出一条信息，
-//      展示变换前和重投影后的世界瞄准方向，它们的向量值应几乎完全相等，从而提供数学上的验证。
-//   3. [代码结构] 将重力切换的核心逻辑包裹在 #region 中，使其意图更加明确。
-//   4. [健壮性] 对重投影后的向量进行了规范化，防止浮点误差累积。
-// </summary>
-// --------------------------------------------------------------------------------------------------------------------
-
 using UnityEngine;
 
 namespace DWHITE
@@ -58,7 +37,8 @@ namespace DWHITE
 
         [Header("瞄准目标")]
         [SerializeField] private float _aimDistance = 10f;
-        [SerializeField] private Vector3 _headOffset = new Vector3(0, 1.7f, 0);
+        [SerializeField] private Vector3 _camOffset = new Vector3(0, 0.4f, 0);
+        [SerializeField] private Vector3 _headOffset = new Vector3(0, 1.4f, 0);
 
         [Header("重力响应")]
         [Tooltip("当重力方向改变时，是否维护头部俯仰与upAxis的相对角度")]
@@ -328,7 +308,7 @@ namespace DWHITE
         /// </summary>
         private void InitializeCamera()
         {
-            _playerCamera.transform.localPosition = _headOffset;
+            _playerCamera.transform.localPosition = _camOffset;
             _playerCamera.fieldOfView = _cameraFov;
         }
 
@@ -612,7 +592,7 @@ namespace DWHITE
             // 右方向垂直于前进方向和上方向
             HorizontalRightDirection = Vector3.Cross(currentUp, HorizontalForwardDirection).normalized;
         }
-        
+
         #endregion
 
         #region 辅助方法 (Helper Methods)
@@ -623,7 +603,7 @@ namespace DWHITE
         private Vector3 GetHeadPosition()
         {
             // 头部位置受身体旋转影响，以模拟真实的头部运动
-            return _playerBody.position + _motor.GetBodyRotation() * _headOffset;
+            return _playerBody.position + _headOffset;
         }
 
         /// <summary>

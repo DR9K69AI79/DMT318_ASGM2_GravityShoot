@@ -515,7 +515,7 @@ namespace DWHITE
         {
             if (_showInputDebug)
             {
-                //Debug.Log($"[NetworkInputManager] {photonView.owner?.NickName ?? "Unknown"}: {message}");
+                Debug.Log($"[NetworkInputManager] {photonView.Owner?.NickName ?? "Unknown"}: {message}");
             }
         }
         
