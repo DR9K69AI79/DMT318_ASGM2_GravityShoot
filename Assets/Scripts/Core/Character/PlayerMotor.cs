@@ -147,39 +147,19 @@ namespace DWHITE
 
         private void Start()
         {
-            // 延迟设置光标锁定，确保PlayerInput已完成初始化
-            StartCoroutine(DelayedPlayerSetup());
+            if(_showDebugInfo && _playerInput == null)
+            {
+                Debug.LogWarning("[PlayerMotor] PlayerInput未找到，请确保PlayerInput组件已添加到角色上。");
+            }
+            _playerInput.SetCursorLock(true);
             ResetState();
-        }
-
-        private System.Collections.IEnumerator DelayedPlayerSetup()
-        {
-            // 等待一帧，确保PlayerInput完成初始化
-            yield return null;
-            
-            // 确保PlayerInput已准备好
-            int waitFrames = 0;
-            while (_playerInput != null && !_playerInput.InputEnabled && waitFrames < 30)
-            {
-                yield return null;
-                waitFrames++;
-            }
-            
-            if (_playerInput != null && _playerInput.InputEnabled)
-            {
-                _playerInput.SetCursorLock(true);
-                if (_showDebugInfo) Debug.Log("[PlayerMotor] 玩家初始化完成，输入系统已就绪");
-            }
-            else
-            {
-                Debug.LogWarning("[PlayerMotor] PlayerInput初始化超时或失败");
-            }
         }
 
         private void Update()
         {
             HandleInput();
         }
+
         private void FixedUpdate()
         {
             if (_tuning == null) return;
@@ -206,8 +186,7 @@ namespace DWHITE
             _rb.velocity = _velocity;
 
             // 6. 使用全新的统一旋转模型更新角色姿态
-            UpdateRotation();            // 7. 动画更新现在由PlayerAnimationController处理
-            // UpdateAnimator(); // 已移至PlayerAnimationController
+            UpdateRotation();
         }
 
         private void OnValidate()
@@ -257,7 +236,9 @@ namespace DWHITE
 
             float targetMultiplier = _isSprinting ? _tuning.sprintSpeedMultiplier : 1f;
             _currentSpeedMultiplier = Mathf.Lerp(_currentSpeedMultiplier, targetMultiplier, _tuning.sprintTransitionSpeed * Time.deltaTime);
-        }        /// <summary>
+        }
+
+        /// <summary>
         /// 处理跳跃相关的输入，包括跳跃缓冲。
         /// 增强了对输入系统状态的检查以避免初始化问题。
         /// </summary>
@@ -266,6 +247,7 @@ namespace DWHITE
             // 确保PlayerInput已正确初始化
             if (_playerInput == null || !_playerInput.InputEnabled)
             {
+                Debug.LogWarning("[PlayerMotor] PlayerInput未找到或未初始化");
                 return;
             }
 
@@ -395,7 +377,7 @@ namespace DWHITE
             _velocity += jumpDirection * jumpSpeed;
             _onGround = false;
             _coyoteCounter = 0;
-            if (_showDebugInfo) Debug.Log("[RBPlayerMotor] Player jumped");
+            if (_showDebugInfo) Debug.Log("[PlayerMotor] Player jumped");
         }
 
         #region Rotation & Gravity Alignment (REBUILT)

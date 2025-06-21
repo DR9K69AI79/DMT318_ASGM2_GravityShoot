@@ -59,7 +59,16 @@ namespace DWHITE
                 {
                     Debug.Log($"[JumpDiagnostic] 🎯 跳跃输入检测到 - 时间: {Time.time:F2}");
                     Debug.Log($"[JumpDiagnostic] 输入状态: Pressed={currentJumpPressed}, Held={_playerInput.JumpHeld}");
-                    Debug.Log($"[JumpDiagnostic] InputEnabled: {_playerInput.InputEnabled}");
+                    Debug.Log($"[JumpDiagnostic] PlayerInputEnabled: {_playerInput.InputEnabled}");
+
+                    if (InputManager.Instance != null)
+                    {
+                        Debug.Log($"[JumpDiagnostic] InputManager: {InputManager.Instance.gameObject.name}");
+                        Debug.Log($"[JumpDiagnostic] InputManager状态: Enabled={InputManager.Instance?.InputEnabled}, JumpPressed={InputManager.Instance?.JumpPressed}, JumpHeld={InputManager.Instance?.JumpHeld}");
+                    }else
+                    {
+                        Debug.LogWarning("[JumpDiagnostic] InputManager未找到或未初始化");
+                    }
                     
                     if (_playerMotor != null)
                     {
@@ -69,7 +78,8 @@ namespace DWHITE
                 _lastJumpPressed = currentJumpPressed;
             }
         }
-          /// <summary>
+
+        /// <summary>
         /// 运行完整的跳跃功能诊断
         /// </summary>
         [ContextMenu("运行跳跃诊断")]

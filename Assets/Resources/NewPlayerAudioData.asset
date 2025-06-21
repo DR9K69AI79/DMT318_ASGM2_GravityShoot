@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3776f20307b8efc49b250bcb0dd152e3, type: 3}
+  m_Name: NewPlayerAudioData
+  m_EditorClassIdentifier: 
+  _footstepClips:
+  - {fileID: 8300000, guid: 111309ee6ba79bc4a9c6e2bbc90efae6, type: 3}
+  - {fileID: 8300000, guid: 4334a83f9ea54e54fbd1519325c82489, type: 3}
+  - {fileID: 8300000, guid: 353954f2b8ae70443be645ea7c81fb26, type: 3}
+  - {fileID: 8300000, guid: 428041abbffc9824c9f8f0c171f7723a, type: 3}
+  _footstepVolume: 0.8
+  _footstepPitchRange: {x: 0.9, y: 1.1}
+  _footstepSpeedThreshold: 0.1
+  _footstepInterval: 0.45
+  _jumpClip: {fileID: 8300000, guid: dfd23eb9b13f4a34586ea194a3499067, type: 3}
+  _jumpVolume: 0.8
+  _jumpPitchRange: {x: 0.7, y: 1.05}
+  _landingClips:
+  - {fileID: 8300000, guid: 13e8ced113c05f642b26bac055f40f29, type: 3}
+  _landingVolume: 1
+  _landingPitchRange: {x: 0.9, y: 1.1}
+  _hardLandingSpeedThreshold: 15
+  _sprintFootstepClips:
+  - {fileID: 8300000, guid: 111309ee6ba79bc4a9c6e2bbc90efae6, type: 3}
+  - {fileID: 8300000, guid: 4334a83f9ea54e54fbd1519325c82489, type: 3}
+  - {fileID: 8300000, guid: 353954f2b8ae70443be645ea7c81fb26, type: 3}
+  - {fileID: 8300000, guid: 428041abbffc9824c9f8f0c171f7723a, type: 3}
+  _sprintFootstepVolume: 0.9
+  _sprintFootstepInterval: 0.35
+  _airWhooshClip: {fileID: 0}
+  _airWhooshVolume: 0.6
+  _airSpeedThreshold: 10
+  _breathingClips: []
+  _breathingVolume: 0.4
+  _breathingInterval: 3
+  _sprintBreathingInterval: 1.5
+  _spatialBlend: 1
+  _dopplerLevel: 0.5
+  _minDistance: 1
+  _maxDistance: 10
+  _rolloffCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: -1
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: -1
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

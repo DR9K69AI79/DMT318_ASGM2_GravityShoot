@@ -21,7 +21,7 @@ namespace DWHITE.Weapons
         [SerializeField] protected AnimationCurve _spreadPattern = AnimationCurve.Linear(0, 0, 1, 1);
         
         [Header("网络限制")]
-        [SerializeField] protected int _maxNetworkProjectilesPerPlayer = 20;
+        [SerializeField] protected int _maxNetworkProjectilesPerPlayer = 200;
         [SerializeField] protected float _projectileSpamCheckInterval = 0.1f;
         
         #endregion

@@ -8,12 +8,12 @@ namespace DWHITE.Audio
     /// 订阅PlayerStateManager的状态变化，独立管理角色音效
     /// 基于最小可行原则，专注核心音效功能
     /// </summary>
-    [RequireComponent(typeof(PlayerStateManager))]
     public partial class PlayerAudioController : MonoBehaviour
     {
         #region 配置与引用
         
         [Header("音效配置")]
+        [SerializeField] private GameObject _playerRoot; 
         [SerializeField] private PlayerAudioData _audioData;
         
         [Header("AudioSource组件")]
@@ -62,8 +62,8 @@ namespace DWHITE.Audio
         private void Awake()
         {
             // 获取组件引用
-            _stateManager = GetComponent<PlayerStateManager>();
-            _networkPlayerController = GetComponent<NetworkPlayerController>();
+            _stateManager = _playerRoot.GetComponent<PlayerStateManager>();
+            _networkPlayerController = _playerRoot.GetComponent<NetworkPlayerController>();
             _isNetworkPlayer = _networkPlayerController != null;
             
             // 验证配置

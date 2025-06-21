@@ -7,16 +7,13 @@ namespace DWHITE
     /// 订阅PlayerStateManager的状态变化，独立管理角色动画
     /// 基于最小可行原则，专注核心动画功能
     /// </summary>
-    [RequireComponent(typeof(PlayerStateManager))]
     public class PlayerAnimationController : MonoBehaviour
     {
-        
         #region Dependencies
-
-        [SerializeField] private Animator _animator;
-        [SerializeField] private PlayerStateManager _stateManager;
+        [SerializeField] private GameObject _playerRoot;
         
-        // 网络支持
+        private Animator _animator;
+        private PlayerStateManager _stateManager;
         private NetworkPlayerController _networkPlayerController;
         private bool _isNetworkPlayer;
 
@@ -63,7 +60,7 @@ namespace DWHITE
         // 目标动画参数值
         private float _targetVelocity;
         private float _targetVelocityForward;
-        private float _targetVelocityStrafe;        // 跳跃状态追踪（用于触发器）
+        private float _targetVelocityStrafe;
         private bool _wasGroundedLastFrame;
 
         #endregion
@@ -72,15 +69,9 @@ namespace DWHITE
 
         private void Awake()
         {
-            // 获取组件引用
-            if (_animator == null)
-            {
-                _animator = GetComponent<Animator>();
-            }
-            _stateManager = GetComponent<PlayerStateManager>();
-            
-            // 检查是否为网络玩家
-            _networkPlayerController = GetComponent<NetworkPlayerController>();
+            _animator = _playerRoot.GetComponent<Animator>();
+            _stateManager = _playerRoot.GetComponent<PlayerStateManager>();
+            _networkPlayerController = _playerRoot.GetComponent<NetworkPlayerController>();
             _isNetworkPlayer = _networkPlayerController != null;
         }
 

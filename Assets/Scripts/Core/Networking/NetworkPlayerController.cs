@@ -528,7 +528,6 @@ namespace DWHITE
             _lastReceiveTime = (float)PhotonNetwork.Time;
 
             ApplyRemotePlayerState();
-            ApplyRemotePlayerState();
 
             LogNetworkDebug($"接收状态 - 位置: {_targetState.position}, 延迟: {info.SentServerTime}");
         }

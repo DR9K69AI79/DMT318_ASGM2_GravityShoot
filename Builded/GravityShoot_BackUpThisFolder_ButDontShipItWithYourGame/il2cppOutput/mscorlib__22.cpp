@@ -326,6 +326,8 @@ IL2CPP_EXTERN_C RuntimeClass* CultureInfo_t9BA817D41AD55AC8BD07480DD8AC22F8FFA37
 IL2CPP_EXTERN_C RuntimeClass* DecoderNLS_tF18CBF663DFA66748F619AD7C6D6C4859DBFA80B_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* DirectoryInfo_tEAEEC018EB49B4A71907FFEAFE935FAA8F9C1FE2_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* DirectoryNotFoundException_tBE92A20AAC24C3B22DE38973ABE6886FA97419BF_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* DriveNotFoundException_t8FCFF328BE739F3ABD1089ADFE303F6F86002384_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* EmptyArray_1_t7187E746F328254739F076CFBCAABB28D4B4554C_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* EmptyArray_1_t7BBC8CED754F364A777871A238BBBE3F94FFDDE1_il2cpp_TypeInfo_var;
@@ -2126,6 +2128,13 @@ struct SecurityException_t025CB4C23107E67E07CF085826B40EDE72F8165C  : public Sys
 {
 	String_t* ___permissionState;
 };
+struct TypeLoadException_t6333E3083F7BFF1A582969E6F67ACBA8B0035C32  : public SystemException_tCC48D868298F4C0705279823E34B00F4FBDB7295
+{
+	String_t* ___ClassName;
+	String_t* ___AssemblyName;
+	String_t* ___MessageArg;
+	int32_t ___ResourceId;
+};
 struct UnauthorizedAccessException_t8FC1F1DE7AA62456E9E25EFDFC658A623A626791  : public SystemException_tCC48D868298F4C0705279823E34B00F4FBDB7295
 {
 };
@@ -2160,6 +2169,9 @@ struct ArgumentOutOfRangeException_tEA2822DAF62B10EEED00E0E3A341D4BAF78CF85F  : 
 	RuntimeObject* ____actualValue;
 };
 struct DirectoryNotFoundException_tBE92A20AAC24C3B22DE38973ABE6886FA97419BF  : public IOException_t5D599190B003D41D45D4839A9B6B9AB53A755910
+{
+};
+struct DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534  : public TypeLoadException_t6333E3083F7BFF1A582969E6F67ACBA8B0035C32
 {
 };
 struct DriveNotFoundException_t8FCFF328BE739F3ABD1089ADFE303F6F86002384  : public IOException_t5D599190B003D41D45D4839A9B6B9AB53A755910
@@ -2717,6 +2729,8 @@ IL2CPP_MANAGED_FORCE_INLINE IL2CPP_METHOD_ATTR ReadOnlySpan_1_tA850A6C0E88ABBA37
 IL2CPP_MANAGED_FORCE_INLINE IL2CPP_METHOD_ATTR void Span_1__ctor_mC9BE2938B716B46BB6B9070B94DBE5CE814BC0E2_gshared_inline (Span_1_tEDDF15FCF9EC6DEBA0F696BAACDDBAB9D92C252D* __this, Il2CppChar* ___0_ptr, int32_t ___1_length, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void AsyncTaskMethodBuilder_1_Start_TisU3CU3CReadAsyncU3Eg__FinishReadAsyncU7C44_0U3Ed_t6EAE62DEFFC0B9A1B4DC252F9C2C86F5E7BCF2D9_m90C20E776AC4CBDAF12EE5953B4FC0F196E12DE5_gshared (AsyncTaskMethodBuilder_1_tF0BDBC54D5EB433C1205550D0F9819F43C9D4019* __this, U3CU3CReadAsyncU3Eg__FinishReadAsyncU7C44_0U3Ed_t6EAE62DEFFC0B9A1B4DC252F9C2C86F5E7BCF2D9* ___0_stateMachine, const RuntimeMethod* method) ;
 
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Kernel32_SetThreadErrorMode_mDE6DC1CB22D61EEF3A5BE8066B5B248C764EDF03 (uint32_t ___0_dwNewMode, uint32_t* ___1_lpOldMode, const RuntimeMethod* method) ;
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void DisableMediaInsertionPrompt_Dispose_m55D98E173543F23BE6030D5E39BFEC3633890D0C (DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7* __this, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool FileSystem_DirectoryExists_mAAC0DCDBF58401F493DDC05947817665D9DBE19D (String_t* ___0_fullPath, const RuntimeMethod* method) ;
 inline void List_1__ctor_mCA8DD57EAC70C2B5923DBB9D5A77CEAC22E7068E (List_1_tF470A3BE5C1B5B68E1325EF3F109D172E60BD7CD* __this, const RuntimeMethod* method)
 {
@@ -2755,7 +2769,6 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool FileSystem_UnityDeleteFile_mD983D8AFFE4F
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t FileSystem_FillAttributeInfo_m24866CECA2D8D57796A94752603FB8122AE7E04E (String_t* ___0_path, WIN32_FILE_ATTRIBUTE_DATA_tD093F8658579DA72CCD2E158A681DDE37834F73B* ___1_data, bool ___2_returnErrorOnNotFound, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR String_t* PathInternal_TrimEndingDirectorySeparator_m32C0CC3C95360374E7B405E941386C874312D5F5 (String_t* ___0_path, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7 DisableMediaInsertionPrompt_Create_m84DD4D5F7C6202D9ED5285C5563475ABC73CA91C (const RuntimeMethod* method) ;
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void DisableMediaInsertionPrompt_Dispose_m55D98E173543F23BE6030D5E39BFEC3633890D0C (DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7* __this, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool FileSystem_UnityGetFileAttributesEx_mD93B45EE7B35D90E587C00214401348F971ADF1C (String_t* ___0_path, WIN32_FILE_ATTRIBUTE_DATA_tD093F8658579DA72CCD2E158A681DDE37834F73B* ___1_data, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR SafeFindHandle_t3DD1D95C2F73C2D4F7F5DADC54024FD982FBE7E1* FileSystem_UnityFindFirstFile_mCDF3926755FFF2AD8D13D523F0502DE712A8F96E (String_t* ___0_path, WIN32_FIND_DATA_t0A641A00D0B2241B84A2B556D57E9A741B499A0A* ___1_findData, const RuntimeMethod* method) ;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void WIN32_FILE_ATTRIBUTE_DATA_PopulateFrom_mFDC867C91453AA607FDF9D1E478D09FB8B462958 (WIN32_FILE_ATTRIBUTE_DATA_tD093F8658579DA72CCD2E158A681DDE37834F73B* __this, WIN32_FIND_DATA_t0A641A00D0B2241B84A2B556D57E9A741B499A0A* ___0_findData, const RuntimeMethod* method) ;
@@ -3449,6 +3462,137 @@ inline void AsyncTaskMethodBuilder_1_Start_TisU3CU3CReadAsyncU3Eg__FinishReadAsy
 {
 	((  void (*) (AsyncTaskMethodBuilder_1_tF0BDBC54D5EB433C1205550D0F9819F43C9D4019*, U3CU3CReadAsyncU3Eg__FinishReadAsyncU7C44_0U3Ed_t6EAE62DEFFC0B9A1B4DC252F9C2C86F5E7BCF2D9*, const RuntimeMethod*))AsyncTaskMethodBuilder_1_Start_TisU3CU3CReadAsyncU3Eg__FinishReadAsyncU7C44_0U3Ed_t6EAE62DEFFC0B9A1B4DC252F9C2C86F5E7BCF2D9_m90C20E776AC4CBDAF12EE5953B4FC0F196E12DE5_gshared)(__this, ___0_stateMachine, method);
 }
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_pinvoke(const DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7& unmarshaled, DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_pinvoke& marshaled)
+{
+	marshaled.____disableSuccess = static_cast<int32_t>(unmarshaled.____disableSuccess);
+	marshaled.____oldMode = unmarshaled.____oldMode;
+}
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_pinvoke_back(const DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_pinvoke& marshaled, DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7& unmarshaled)
+{
+	bool unmarshaled_disableSuccess_temp_0 = false;
+	unmarshaled_disableSuccess_temp_0 = static_cast<bool>(marshaled.____disableSuccess);
+	unmarshaled.____disableSuccess = unmarshaled_disableSuccess_temp_0;
+	uint32_t unmarshaled_oldMode_temp_1 = 0;
+	unmarshaled_oldMode_temp_1 = marshaled.____oldMode;
+	unmarshaled.____oldMode = unmarshaled_oldMode_temp_1;
+}
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_pinvoke_cleanup(DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_pinvoke& marshaled)
+{
+}
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_com(const DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7& unmarshaled, DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_com& marshaled)
+{
+	marshaled.____disableSuccess = static_cast<int32_t>(unmarshaled.____disableSuccess);
+	marshaled.____oldMode = unmarshaled.____oldMode;
+}
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_com_back(const DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_com& marshaled, DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7& unmarshaled)
+{
+	bool unmarshaled_disableSuccess_temp_0 = false;
+	unmarshaled_disableSuccess_temp_0 = static_cast<bool>(marshaled.____disableSuccess);
+	unmarshaled.____disableSuccess = unmarshaled_disableSuccess_temp_0;
+	uint32_t unmarshaled_oldMode_temp_1 = 0;
+	unmarshaled_oldMode_temp_1 = marshaled.____oldMode;
+	unmarshaled.____oldMode = unmarshaled_oldMode_temp_1;
+}
+IL2CPP_EXTERN_C void DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshal_com_cleanup(DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_marshaled_com& marshaled)
+{
+}
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7 DisableMediaInsertionPrompt_Create_m84DD4D5F7C6202D9ED5285C5563475ABC73CA91C (const RuntimeMethod* method) 
+{
+	static bool s_Il2CppMethodInitialized;
+	if (!s_Il2CppMethodInitialized)
+	{
+		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_il2cpp_TypeInfo_var);
+		s_Il2CppMethodInitialized = true;
+	}
+	DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7 V_0;
+	memset((&V_0), 0, sizeof(V_0));
+	il2cpp::utils::ExceptionSupportStack<RuntimeObject*, 1> __active_exceptions;
+	{
+		il2cpp_codegen_initobj((&V_0), sizeof(DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7));
+		bool L_0 = ((DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_StaticFields*)il2cpp_codegen_static_fields_for(DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_il2cpp_TypeInfo_var))->___useUWPFallback;
+		if (!L_0)
+		{
+			goto IL_0019;
+		}
+	}
+	{
+		(&V_0)->____disableSuccess = (bool)0;
+		DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7 L_1 = V_0;
+		return L_1;
+	}
+
+IL_0019:
+	{
+	}
+	try
+	{
+		uint32_t* L_2 = (uint32_t*)(&(&V_0)->____oldMode);
+		bool L_3;
+		L_3 = Kernel32_SetThreadErrorMode_mDE6DC1CB22D61EEF3A5BE8066B5B248C764EDF03(1, L_2, NULL);
+		(&V_0)->____disableSuccess = L_3;
+		goto IL_0041;
+	}
+	catch(Il2CppExceptionWrapper& e)
+	{
+		if(il2cpp_codegen_class_is_assignable_from (((RuntimeClass*)il2cpp_codegen_initialize_runtime_metadata_inline((uintptr_t*)&DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534_il2cpp_TypeInfo_var)), il2cpp_codegen_object_class(e.ex)))
+		{
+			IL2CPP_PUSH_ACTIVE_EXCEPTION(e.ex);
+			goto CATCH_0030;
+		}
+		throw e;
+	}
+
+CATCH_0030:
+	{
+		DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534* L_4 = ((DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534*)IL2CPP_GET_ACTIVE_EXCEPTION(DllNotFoundException_t8CAE636A394C482C9FCF38FB7B7929506319D534*));;
+		((DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_StaticFields*)il2cpp_codegen_static_fields_for(((RuntimeClass*)il2cpp_codegen_initialize_runtime_metadata_inline((uintptr_t*)&DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7_il2cpp_TypeInfo_var))))->___useUWPFallback = (bool)1;
+		(&V_0)->____disableSuccess = (bool)0;
+		IL2CPP_POP_ACTIVE_EXCEPTION(Exception_t*);
+		goto IL_0041;
+	}
+
+IL_0041:
+	{
+		DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7 L_5 = V_0;
+		return L_5;
+	}
+}
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void DisableMediaInsertionPrompt_Dispose_m55D98E173543F23BE6030D5E39BFEC3633890D0C (DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7* __this, const RuntimeMethod* method) 
+{
+	uint32_t V_0 = 0;
+	{
+		bool L_0 = __this->____disableSuccess;
+		if (!L_0)
+		{
+			goto IL_0016;
+		}
+	}
+	{
+		uint32_t L_1 = __this->____oldMode;
+		bool L_2;
+		L_2 = Kernel32_SetThreadErrorMode_mDE6DC1CB22D61EEF3A5BE8066B5B248C764EDF03(L_1, (&V_0), NULL);
+	}
+
+IL_0016:
+	{
+		return;
+	}
+}
+IL2CPP_EXTERN_C  void DisableMediaInsertionPrompt_Dispose_m55D98E173543F23BE6030D5E39BFEC3633890D0C_AdjustorThunk (RuntimeObject* __this, const RuntimeMethod* method)
+{
+	DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7* _thisAdjusted;
+	int32_t _offset = 1;
+	_thisAdjusted = reinterpret_cast<DisableMediaInsertionPrompt_t874258833B73FEAAC32D1DB565E134D1439AB2F7*>(__this + _offset);
+	DisableMediaInsertionPrompt_Dispose_m55D98E173543F23BE6030D5E39BFEC3633890D0C(_thisAdjusted, method);
+}
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Winvalid-offsetof"
