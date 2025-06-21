@@ -10,7 +10,7 @@ namespace DWHITE
     /// 基于项目的物理重力系统设计，支持客户端预测和服务器校正
     /// </summary>
     [RequireComponent(typeof(PhotonView))]
-    public class NetworkPlayerController : MonoBehaviourPun, IPunObservable
+    public class NetworkPlayerController : NetworkSyncBase
     {
         #region Configuration
         
@@ -467,81 +467,72 @@ namespace DWHITE
         
         #endregion
         
-        #region IPunObservable Implementation
-          public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+        #region NetworkSyncBase Implementation
+        protected override void WriteData(PhotonStream stream)
         {
-            if (stream.IsWriting)
+            stream.SendNext(_networkState.position);
+            stream.SendNext(_networkState.rotation);
+            stream.SendNext(_networkState.velocity);
+
+            if (_syncGravityDirection)
             {
-                // 发送本地玩家状态
-                stream.SendNext(_networkState.position);
-                stream.SendNext(_networkState.rotation);
-                stream.SendNext(_networkState.velocity);
-                
-                if (_syncGravityDirection)
-                {
-                    stream.SendNext(_networkState.gravityDirection);
-                }
-                
-                stream.SendNext(_networkState.isGrounded);
-                stream.SendNext(_networkState.timestamp);
-                
-                // 发送输入状态（可选）
-                stream.SendNext(_networkState.moveInput);
-                stream.SendNext(_networkState.lookInput);
-                stream.SendNext(_networkState.jumpPressed);
-                stream.SendNext(_networkState.firePressed);
-                
-                // 发送PlayerState数据用于动画同步
-                stream.SendNext(_networkState.isSprinting);
-                stream.SendNext(_networkState.isJumping);
-                stream.SendNext(_networkState.isOnSteep);
-                stream.SendNext(_networkState.speed);
-                stream.SendNext(_networkState.speedMultiplier);
-                stream.SendNext(_networkState.upAxis);
-                stream.SendNext(_networkState.forwardAxis);
-                stream.SendNext(_networkState.rightAxis);
+                stream.SendNext(_networkState.gravityDirection);
             }
-            else
-            {
-                // 接收远程玩家状态
-                _targetState.position = (Vector3)stream.ReceiveNext();
-                _targetState.rotation = (Quaternion)stream.ReceiveNext();
-                _targetState.velocity = (Vector3)stream.ReceiveNext();
-                
-                if (_syncGravityDirection)
-                {
-                    _targetState.gravityDirection = (Vector3)stream.ReceiveNext();
-                }
-                
-                _targetState.isGrounded = (bool)stream.ReceiveNext();
-                _targetState.timestamp = (float)stream.ReceiveNext();
-                
-                // 接收输入状态
-                _targetState.moveInput = (Vector2)stream.ReceiveNext();
-                _targetState.lookInput = (Vector2)stream.ReceiveNext();
-                _targetState.jumpPressed = (bool)stream.ReceiveNext();
-                _targetState.firePressed = (bool)stream.ReceiveNext();
-                
-                // 接收PlayerState数据
-                _targetState.isSprinting = (bool)stream.ReceiveNext();
-                _targetState.isJumping = (bool)stream.ReceiveNext();
-                _targetState.isOnSteep = (bool)stream.ReceiveNext();
-                _targetState.speed = (float)stream.ReceiveNext();
-                _targetState.speedMultiplier = (float)stream.ReceiveNext();
-                _targetState.upAxis = (Vector3)stream.ReceiveNext();
-                _targetState.forwardAxis = (Vector3)stream.ReceiveNext();
-                _targetState.rightAxis = (Vector3)stream.ReceiveNext();
-                
-                _lastReceiveTime = (float)PhotonNetwork.Time;
-                
-                // 应用PlayerState到远程玩家
-                ApplyRemotePlayerState();
-                ApplyRemotePlayerState();
-                
-                LogNetworkDebug($"接收状态 - 位置: {_targetState.position}, 延迟: {info.SentServerTime}");
-            }
+
+            stream.SendNext(_networkState.isGrounded);
+            stream.SendNext(_networkState.timestamp);
+
+            stream.SendNext(_networkState.moveInput);
+            stream.SendNext(_networkState.lookInput);
+            stream.SendNext(_networkState.jumpPressed);
+            stream.SendNext(_networkState.firePressed);
+
+            stream.SendNext(_networkState.isSprinting);
+            stream.SendNext(_networkState.isJumping);
+            stream.SendNext(_networkState.isOnSteep);
+            stream.SendNext(_networkState.speed);
+            stream.SendNext(_networkState.speedMultiplier);
+            stream.SendNext(_networkState.upAxis);
+            stream.SendNext(_networkState.forwardAxis);
+            stream.SendNext(_networkState.rightAxis);
         }
-        
+
+        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
+        {
+            _targetState.position = (Vector3)stream.ReceiveNext();
+            _targetState.rotation = (Quaternion)stream.ReceiveNext();
+            _targetState.velocity = (Vector3)stream.ReceiveNext();
+
+            if (_syncGravityDirection)
+            {
+                _targetState.gravityDirection = (Vector3)stream.ReceiveNext();
+            }
+
+            _targetState.isGrounded = (bool)stream.ReceiveNext();
+            _targetState.timestamp = (float)stream.ReceiveNext();
+
+            _targetState.moveInput = (Vector2)stream.ReceiveNext();
+            _targetState.lookInput = (Vector2)stream.ReceiveNext();
+            _targetState.jumpPressed = (bool)stream.ReceiveNext();
+            _targetState.firePressed = (bool)stream.ReceiveNext();
+
+            _targetState.isSprinting = (bool)stream.ReceiveNext();
+            _targetState.isJumping = (bool)stream.ReceiveNext();
+            _targetState.isOnSteep = (bool)stream.ReceiveNext();
+            _targetState.speed = (float)stream.ReceiveNext();
+            _targetState.speedMultiplier = (float)stream.ReceiveNext();
+            _targetState.upAxis = (Vector3)stream.ReceiveNext();
+            _targetState.forwardAxis = (Vector3)stream.ReceiveNext();
+            _targetState.rightAxis = (Vector3)stream.ReceiveNext();
+
+            _lastReceiveTime = (float)PhotonNetwork.Time;
+
+            ApplyRemotePlayerState();
+            ApplyRemotePlayerState();
+
+            LogNetworkDebug($"接收状态 - 位置: {_targetState.position}, 延迟: {info.SentServerTime}");
+        }
+
         #endregion
         
         #region Public API

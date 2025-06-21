@@ -1,6 +1,7 @@
 using UnityEngine;
 using Photon.Pun;
 using System.Collections.Generic;
+using DWHITE;
 
 namespace DWHITE.Weapons.Network
 {
@@ -8,7 +9,7 @@ namespace DWHITE.Weapons.Network
     /// 武器网络同步管理器
     /// 处理武器切换、射击和特效的网络同步
     /// </summary>
-    public class WeaponNetworkSync : MonoBehaviourPun, IPunObservable
+    public class WeaponNetworkSync : NetworkSyncBase
     {
         [Header("同步设置")]
         [SerializeField] private bool _syncWeaponIndex = true;
@@ -253,23 +254,9 @@ namespace DWHITE.Weapons.Network
         
         #endregion
         
-        #region IPunObservable 实现
-        
-        public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
-        {
-            if (stream.IsWriting)
-            {
-                // 发送数据
-                WriteNetworkData(stream);
-            }
-            else
-            {
-                // 接收数据
-                ReadNetworkData(stream);
-            }
-        }
-        
-        private void WriteNetworkData(PhotonStream stream)
+        #region NetworkSyncBase 实现
+
+        protected override void WriteData(PhotonStream stream)
         {
             // 检查是否需要发送数据
             if (Time.time - _lastSendTime < 1f / _sendRate)
@@ -305,8 +292,8 @@ namespace DWHITE.Weapons.Network
                 stream.SendNext(false);
             }
         }
-        
-        private void ReadNetworkData(PhotonStream stream)
+
+        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
         {
             // 接收武器索引
             if (_syncWeaponIndex)
@@ -326,7 +313,7 @@ namespace DWHITE.Weapons.Network
                 _networkIsReloading = (bool)stream.ReceiveNext();
             }
         }
-        
+
         #endregion
         
         #region 公共接口
