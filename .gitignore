@@ -76,3 +76,4 @@ crashlytics-build.properties
 
 # Build files
 /[Bb]uilded/
+/Builded
