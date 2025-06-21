@@ -134,6 +134,7 @@ namespace DWHITE
             _rb = GetComponent<Rigidbody>();
             _playerInput = GetComponent<PlayerInput>();
             _cameraController = GetComponent<PlayerView>();
+            _camOrientation = _cameraController.PlayerCamera.transform;
 
             // 配置Rigidbody
             _rb.useGravity = false;
@@ -142,7 +143,9 @@ namespace DWHITE
 
             // 加载并验证配置
             LoadAndValidateTuning();
-        }        private void Start()
+        }
+
+        private void Start()
         {
             // 延迟设置光标锁定，确保PlayerInput已完成初始化
             StartCoroutine(DelayedPlayerSetup());
@@ -290,11 +293,21 @@ namespace DWHITE
         private void UpdateMovementAxes()
         {
             if (_cameraController == null) return;
-            ForwardAxis = _cameraController.HorizontalForwardDirection;
-            RightAxis = _cameraController.HorizontalRightDirection;
-        }        /// <summary>
-                 /// 根据输入和当前最大速度计算期望速度。
-                 /// </summary>
+            if (_onGround && _tuning.enterAirGravityThreshold < CustomGravity.GetGravity(_rb.position).magnitude)
+            {
+                ForwardAxis = _cameraController.HorizontalForwardDirection;
+                RightAxis = _cameraController.HorizontalRightDirection;
+            }
+            else
+            {
+                ForwardAxis = _camOrientation.forward;
+                RightAxis = _camOrientation.right;
+            }
+        }
+
+        /// <summary>
+        /// 根据输入和当前最大速度计算期望速度。
+        /// </summary>
         private void UpdateDesiredVelocity()
         {
             float currentMaxSpeed = GetCurrentMaxSpeed();

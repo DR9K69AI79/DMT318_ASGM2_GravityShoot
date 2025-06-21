@@ -68,6 +68,8 @@ MonoBehaviour:
   - OnWeaponSwitchedRPC
   - OnProjectileBatchUpdate
   - OnProjectileDestroyed
+  - OnNetworkJumpSound
+  - OnNetworkLandingSound
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

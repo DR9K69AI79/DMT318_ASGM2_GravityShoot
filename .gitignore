@@ -73,3 +73,6 @@ crashlytics-build.properties
 
 # Art Assets
 /[Aa]ssets/[Aa]rt/
+
+# Build files
+/[Bb]uilded/

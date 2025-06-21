@@ -45,6 +45,8 @@ namespace DWHITE {
     public float sprintTransitionSpeed = 5f;
 	    
 	    [Header("空中移动")]
+	    [Tooltip("空中进入加速度阈值 - 当重力小于此值时，允许空中加速 (m/s²)")]
+		public float enterAirGravityThreshold = 6f;
 	    [Tooltip("空中加速度曲线 (X: 当前速度/最大速度比例 0-1, Y: 加速度 m/s²)")]
 	    public AnimationCurve airAcceleration = AnimationCurve.EaseInOut(0f, 15f, 1f, 2f);
 	    

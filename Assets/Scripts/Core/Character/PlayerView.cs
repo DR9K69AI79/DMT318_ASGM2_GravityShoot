@@ -51,10 +51,15 @@ namespace DWHITE
         [SerializeField] private bool _showDebugInfo = false;
         [SerializeField] private bool _showDebugGizmos = false;
         [SerializeField] private bool _logGravityChangeVerification = false;
-        
+
         #endregion
 
         #region 公共属性 (Public Properties)
+        
+        /// <summary>
+        /// 玩家摄像机。
+        /// </summary>
+        public Camera PlayerCamera => _playerCamera;
 
         /// <summary>
         /// 相对于当前重力平面的前进方向，用于移动。
