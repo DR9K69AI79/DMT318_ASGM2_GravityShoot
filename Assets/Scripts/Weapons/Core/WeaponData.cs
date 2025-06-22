@@ -53,6 +53,12 @@ namespace DWHITE.Weapons
         [Header("后坐力")]
         [SerializeField] private Vector2 _recoilPattern = new Vector2(1f, 2f); // X: 水平, Y: 垂直
         [SerializeField] private float _recoilRecoveryTime = 0.5f;
+          [Header("动画设置")]
+        [SerializeField] private string _fireAnimationName = "Fire"; // 射击动画名称
+        [SerializeField] private string _reloadAnimationName = "Reload"; // 装弹动画名称
+        [SerializeField] private string _equipAnimationName = "Equip"; // 装备动画名称
+        [SerializeField] private string _unequipAnimationName = "Unequip"; // 卸载动画名称
+        [SerializeField] private string _idleAnimationName = "Idle"; // 待机动画名称
         
         [Header("网络设置")]
         [SerializeField] private bool _syncProjectiles = true; // 是否同步投射物
@@ -99,10 +105,16 @@ namespace DWHITE.Weapons
         public GameObject MuzzleFlashPrefab => _muzzleFlashPrefab;
         public GameObject ImpactEffectPrefab => _impactEffectPrefab;
         public GameObject TrailEffectPrefab => _trailEffectPrefab;
-        
-        // 后坐力
+          // 后坐力
         public Vector2 RecoilPattern => _recoilPattern;
         public float RecoilRecoveryTime => _recoilRecoveryTime;
+        
+        // 动画设置
+        public string FireAnimationName => _fireAnimationName;
+        public string ReloadAnimationName => _reloadAnimationName;
+        public string EquipAnimationName => _equipAnimationName;
+        public string UnequipAnimationName => _unequipAnimationName;
+        public string IdleAnimationName => _idleAnimationName;
         
         // 网络设置
         public bool SyncProjectiles => _syncProjectiles;

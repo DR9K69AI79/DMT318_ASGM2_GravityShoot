@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 283571ebef9d8ed4ab58d85ea17b40c5, type: 3}
+  m_Name: NormalPistol
+  m_EditorClassIdentifier: 
+  _weaponName: Pistol
+  _description: "\u6B66\u5668\u63CF\u8FF0"
+  _weaponIcon: {fileID: 0}
+  _fireRate: 5
+  _automatic: 1
+  _projectileSpeed: 10
+  _projectilesPerShot: 1
+  _spreadAngle: 0
+  _magazineSize: 25
+  _reloadTime: 1.5
+  _infiniteAmmo: 1
+  _damage: 20
+  _maxRange: 100
+  _canHeadshot: 1
+  _headshotMultiplier: 2
+  _maxBounceCount: 0
+  _bounceEnergyLoss: 0.1
+  _gravityForce: 0
+  _gravityRadius: 0
+  _explosionRadius: 0
+  _explosionDamage: 0
+  _fireSound: {fileID: 8300000, guid: 9e9480b4d07646942b555fd43f2a0f71, type: 3}
+  _reloadSound: {fileID: 8300000, guid: 778c7be53403f9e45804f5a61a13a3e6, type: 3}
+  _emptySound: {fileID: 8300000, guid: 0c187ee2790c74c4e9985aa1ee1a12d5, type: 3}
+  _muzzleFlashPrefab: {fileID: 719657563245746768, guid: 0e16f1cdd6f7c7b449e5feb2ac6c130f,
+    type: 3}
+  _impactEffectPrefab: {fileID: 7044691720042714530, guid: 618a66bd7838cf14ea3796f525b1edd2,
+    type: 3}
+  _trailEffectPrefab: {fileID: 1697291515947970758, guid: c983806bad792ad46befd059b0ac568b,
+    type: 3}
+  _recoilPattern: {x: 0, y: 2}
+  _recoilRecoveryTime: 0.5
+  _fireAnimationName: Fire
+  _reloadAnimationName: Reload
+  _equipAnimationName: Equip
+  _unequipAnimationName: Unequip
+  _idleAnimationName: Idle
+  _syncProjectiles: 1
+  _networkPriority: 1

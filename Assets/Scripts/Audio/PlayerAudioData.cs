@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DWHITE.Audio
+namespace DWHITE
 {
     /// <summary>
     /// Player音效配置数据 ScriptableObject

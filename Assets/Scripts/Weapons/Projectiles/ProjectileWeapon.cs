@@ -326,7 +326,7 @@ namespace DWHITE.Weapons
         /// 网络同步射击
         /// </summary>
         [PunRPC]
-        protected override void NetworkFire(Vector3 direction, float timestamp)
+        public override void NetworkFire(Vector3 direction, float timestamp)
         {
             // 计算时间差进行延迟补偿
             float timeDiff = (float)(PhotonNetwork.Time - timestamp);

@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 using Photon.Pun;
+using DWHITE;
 
 namespace DWHITE.Weapons
 {
@@ -117,12 +118,6 @@ namespace DWHITE.Weapons
             // 确定是否为本地玩家
             _isLocalPlayer = photonView == null || photonView.IsMine;
             
-            // 初始化武器容器
-            if (_weaponContainer == null)
-            {
-                _weaponContainer = transform;
-            }
-            
             // 验证配置
             ValidateConfiguration();
         }
@@ -166,52 +161,22 @@ namespace DWHITE.Weapons
         
         #endregion
         
-        #region 输入处理
-          /// <summary>
+        #region 输入处理        /// <summary>
         /// 设置输入事件处理器
         /// </summary>
         private void SetupInputHandlers()
         {
             if (_playerInput == null) return;
             
-            // 订阅射击事件
-            InputManager.OnFirePressed += OnFirePressed;
-            InputManager.OnFireReleased += OnFireReleased;
+            // 通过PlayerInput组件订阅输入事件
+            // PlayerInput会从InputManager获取输入并转发给武器控制器
         }
         
         /// <summary>
         /// 移除输入事件处理器
         /// </summary>
-        private void RemoveInputHandlers()
-        {
-            // 取消订阅射击事件
-            InputManager.OnFirePressed -= OnFirePressed;
-            InputManager.OnFireReleased -= OnFireReleased;
-        }
-        
-        /// <summary>
-        /// 处理射击按下事件
-        /// </summary>
-        private void OnFirePressed()
-        {
-            _fireInputPressed = true;
-            _fireInputHeld = true;
-            _lastFireInputTime = Time.time;
-            _pendingFireInput = true;
-            
-            if (_showDebugInfo)
-                Debug.Log("[武器控制器] 射击输入按下");
-        }
-        
-        /// <summary>
-        /// 处理射击释放事件
-        /// </summary>
-        private void OnFireReleased()
-        {
-            _fireInputHeld = false;
-            
-            if (_showDebugInfo)
-                Debug.Log("[武器控制器] 射击输入释放");
+        private void RemoveInputHandlers()        {
+            // 清理输入订阅
         }
         
         /// <summary>
@@ -219,15 +184,37 @@ namespace DWHITE.Weapons
         /// </summary>
         private void UpdateFireInput()
         {
+            if (_playerInput == null) return;
+
+            // 通过PlayerInput主动获取射击输入状态
+            bool firePressed = _playerInput.FirePressed;
+            bool fireHeld = _playerInput.FireHeld;
+
             // 处理单次射击
-            if (_fireInputPressed)
+            if (firePressed)
             {
-                _fireInputPressed = false;
+                _fireInputPressed = true;
+                _fireInputHeld = true;
+                _lastFireInputTime = Time.time;
+                _pendingFireInput = true;
+                
                 TryFire();
+                
+                if (_showDebugInfo)
+                    Debug.Log("[武器控制器] 射击输入按下");
+            }
+
+            // 更新射击持续状态
+            if (!fireHeld && _fireInputHeld)
+            {
+                _fireInputHeld = false;
+                
+                if (_showDebugInfo)
+                    Debug.Log("[武器控制器] 射击输入释放");
             }
             
             // 处理自动射击
-            if (_autoFire && _fireInputHeld && _currentWeapon != null && _currentWeapon.WeaponData.Automatic)
+            if (_autoFire && fireHeld && _currentWeapon != null && _currentWeapon.WeaponData.Automatic)
             {
                 TryFire();
             }
@@ -244,6 +231,12 @@ namespace DWHITE.Weapons
             {
                 _pendingFireInput = false;
             }
+            
+            // 重置单帧输入状态
+            if (firePressed)
+            {
+                _fireInputPressed = false;
+            }
         }
         
         /// <summary>
@@ -251,24 +244,26 @@ namespace DWHITE.Weapons
         /// </summary>
         private void UpdateWeaponSwitching()
         {
-            if (!CanSwitchWeapon) return;
+            if (!CanSwitchWeapon || _playerInput == null) return;
             
-            // 检查数字键切换武器
-            for (int i = 1; i <= Mathf.Min(9, _availableWeapons.Count); i++)
+            // 通过PlayerInput组件检查武器切换输入
+            float switchInput = _playerInput.WeaponSwitchInput;
+            if (Mathf.Abs(switchInput) > 0.1f)
             {
-                if (Input.GetKeyDown(KeyCode.Alpha0 + i))
-                {
-                    SwitchToWeapon(i - 1);
-                    break;
-                }
+                int direction = switchInput > 0 ? 1 : -1;
+                SwitchToNextWeapon(direction);
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[武器控制器] 武器切换 - 方向: {direction}");
             }
             
-            // 检查滚轮切换武器
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.1f)
+            // 检查装弹输入
+            if (_playerInput.ReloadPressed)
             {
-                int direction = scroll > 0 ? 1 : -1;
-                SwitchToNextWeapon(direction);
+                bool success = ReloadCurrentWeapon();
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[武器控制器] 装弹输入 - 结果: {success}");
             }
         }
         
@@ -361,18 +356,12 @@ namespace DWHITE.Weapons
             
             Debug.Log($"[武器控制器] 当前武器: {_currentWeapon.gameObject.name}");
             Debug.Log($"[武器控制器] 武器类型: {_currentWeapon.GetType().Name}");
-            Debug.Log($"[武器控制器] 瞄准方向: {_currentAimDirection}");
-            
+            Debug.Log($"[武器控制器] 瞄准方向: {_currentAimDirection}");            
             bool success = _currentWeapon.TryFire(_currentAimDirection);
             
             Debug.Log($"[武器控制器] 武器TryFire结果: {success}");
             
-            // 如果是网络游戏，发送RPC
-            if (success && photonView != null && photonView.IsMine)
-            {
-                Debug.Log("[武器控制器] 发送网络RPC");
-                photonView.RPC("OnRemoteFire", RpcTarget.Others, _currentAimDirection.x, _currentAimDirection.y, _currentAimDirection.z, PhotonNetwork.Time);
-            }
+            // 网络同步现在由 PlayerStatusManager 处理
             
             OnFireAttempt?.Invoke(this, success);
             
@@ -452,11 +441,7 @@ namespace DWHITE.Weapons
             // 触发事件
             OnWeaponSwitched?.Invoke(this, _currentWeapon);
             
-            // 网络同步
-            if (photonView != null && photonView.IsMine)
-            {
-                photonView.RPC("OnRemoteWeaponSwitch", RpcTarget.Others, weaponIndex);
-            }
+            // 网络同步现在由 PlayerStatusManager 处理
             
             if (_showDebugInfo)
                 Debug.Log($"[武器控制器] 切换到武器: {_currentWeapon.WeaponData.WeaponName}");
@@ -527,32 +512,28 @@ namespace DWHITE.Weapons
         }
         
         #endregion
-        
-        #region 网络同步
+          #region 网络同步 [已废弃 - 由PlayerStatusManager处理]
         
         /// <summary>
-        /// 远程射击同步
+        /// [已废弃] 远程射击同步 - 现在由PlayerStatusManager处理
         /// </summary>
+        [System.Obsolete("网络同步功能已迁移到PlayerStatusManager")]
         [PunRPC]
         private void OnRemoteFire(float dirX, float dirY, float dirZ, double timestamp)
         {
-            Vector3 direction = new Vector3(dirX, dirY, dirZ);
-            
-            if (_currentWeapon != null)
-            {
-                // 调用武器的网络射击方法
-                var networkFireMethod = typeof(WeaponBase).GetMethod("NetworkFire", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                networkFireMethod?.Invoke(_currentWeapon, new object[] { direction, (float)timestamp });
-            }
+            Debug.LogWarning("[PlayerWeaponController] OnRemoteFire已废弃，请使用PlayerStatusManager");
+            // 为了兼容性保留，但功能已移到PlayerStatusManager
         }
         
         /// <summary>
-        /// 远程武器切换同步
+        /// [已废弃] 远程武器切换同步 - 现在由PlayerStatusManager处理
         /// </summary>
+        [System.Obsolete("网络同步功能已迁移到PlayerStatusManager")]
         [PunRPC]
         private void OnRemoteWeaponSwitch(int weaponIndex)
         {
+            Debug.LogWarning("[PlayerWeaponController] OnRemoteWeaponSwitch已废弃，请使用PlayerStatusManager");
+            // 为了兼容性，仍然执行切换，但警告用户
             SwitchToWeapon(weaponIndex);
         }
         

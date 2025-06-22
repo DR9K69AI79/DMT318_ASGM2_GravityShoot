@@ -253,8 +253,7 @@ namespace DWHITE.Weapons.Network
                 processCount++;
             }
         }
-        
-        /// <summary>
+          /// <summary>
         /// 安全销毁投射物
         /// </summary>
         private void SafeDestroyProjectile(ProjectileBase projectile, int projectileId)
@@ -263,13 +262,22 @@ namespace DWHITE.Weapons.Network
             {
                 if (projectile != null && projectile.photonView != null)
                 {
-                    // 通知其他客户端
-                    photonView.RPC("OnProjectileDestroyed", RpcTarget.Others, projectileId);
-                    
-                    // 本地销毁
-                    if (projectile.photonView.IsMine)
+                    // 检查PhotonView是否仍然有效，避免重复销毁
+                    if (projectile.photonView.ViewID != 0 && !projectile.IsDestroyed)
                     {
-                        projectile.DestroyProjectile();
+                        // 通知其他客户端（带延迟确保网络稳定）
+                        photonView.RPC("OnProjectileDestroyed", RpcTarget.Others, projectileId);
+                        
+                        // 本地销毁
+                        if (projectile.photonView.IsMine)
+                        {
+                            projectile.DestroyProjectile();
+                        }
+                    }
+                    else
+                    {
+                        // PhotonView已经无效或对象已销毁，只做本地清理
+                        LogActivity($"投射物 {projectileId} 的PhotonView已无效，仅执行本地清理");
                     }
                 }
                 
@@ -281,17 +289,22 @@ namespace DWHITE.Weapons.Network
                 UnregisterProjectile(projectileId);
             }
         }
-        
-        [PunRPC]
+          [PunRPC]
         private void OnProjectileDestroyed(int projectileId)
         {
             if (_activeProjectiles.TryGetValue(projectileId, out ProjectileBase projectile))
             {
-                if (projectile != null)
+                if (projectile != null && !projectile.IsDestroyed)
                 {
                     projectile.NetworkDestroy();
                 }
                 UnregisterProjectile(projectileId);
+                LogActivity($"接收到销毁通知，投射物 {projectileId} 已清理");
+            }
+            else
+            {
+                // 投射物可能已经被销毁了，这是正常的网络延迟现象
+                LogActivity($"接收到销毁通知，但投射物 {projectileId} 已不存在（可能是网络延迟）");
             }
         }
         

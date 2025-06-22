@@ -168,7 +168,7 @@ MonoBehaviour:
     type: 3}
   _inheritPlayerVelocity: 1
   _inheritVelocityFactor: 0.8
-  _spawnOffset: {x: 0, y: 0, z: 0}
+  _spawnOffset: {x: 0, y: 0, z: 1}
   _useSpread: 0
   _spreadPattern:
     serializedVersion: 2

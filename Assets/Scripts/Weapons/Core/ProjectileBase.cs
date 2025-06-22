@@ -446,10 +446,18 @@ namespace DWHITE.Weapons
             {
                 // 安全销毁：先检查PhotonView是否仍然有效
                 if (photonView.ViewID != 0)
-                {
-                    try
+                {                    try
                     {
-                        PhotonNetwork.Destroy(gameObject);
+                        // 添加额外检查，确保对象仍在PhotonNetwork的管理中
+                        if (PhotonNetwork.GetPhotonView(photonView.ViewID) != null)
+                        {
+                            PhotonNetwork.Destroy(gameObject);
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[投射物] PhotonView {photonView.ViewID} 不在网络列表中，执行本地销毁");
+                            Destroy(gameObject);
+                        }
                     }
                     catch (System.Exception e)
                     {
@@ -520,9 +528,21 @@ namespace DWHITE.Weapons
         /// </summary>
         public virtual void NetworkDestroy()
         {
-            DestroyProjectile();
+            if (_isDestroyed) return;
+            
+            _isDestroyed = true;
+            
+            // 触发销毁事件
+            OnProjectileDestroyed?.Invoke(this);
+            
+            // 子类销毁逻辑
+            OnDestroy();
+            
+            // 直接本地销毁，不再通过网络
+            Destroy(gameObject);
         }
-          /// <summary>
+        
+        /// <summary>
         /// 网络弹跳事件回调
         /// </summary>
         public virtual void OnNetworkBounce(Vector3 bouncePoint, Vector3 bounceNormal)

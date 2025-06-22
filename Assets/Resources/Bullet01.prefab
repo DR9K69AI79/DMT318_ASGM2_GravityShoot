@@ -86,8 +86,8 @@ CapsuleCollider:
   serializedVersion: 2
   m_Radius: 0.05
   m_Height: 0.1936245
-  m_Direction: 1
-  m_Center: {x: 0, y: 0.07851076, z: 0}
+  m_Direction: 2
+  m_Center: {x: 0, y: 0, z: 0.08}
 --- !u!114 &785580874202314293
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -112,9 +112,10 @@ MonoBehaviour:
   _maxBounces: 10
   _bounceEnergyLoss: 0.8
   _minBounceVelocity: 1
-  _impactEffectPrefab: {fileID: 0}
+  _impactEffectPrefab: {fileID: 919132149155446097, guid: 59b6e6294096bc94d9a3082a1c983de1,
+    type: 3}
   _trailEffectPrefab: {fileID: 0}
-  _impactSound: {fileID: 0}
+  _impactSound: {fileID: 8300000, guid: 172f576bc4226094180d5993f9325d57, type: 3}
   _bounceSound: {fileID: 0}
   _showDebugInfo: 1
   _showTrajectory: 1
@@ -122,7 +123,7 @@ MonoBehaviour:
   _explosionDelay: 0
   _penetrateTargets: 0
   _maxPenetrations: 0
-  _damageOnTouch: 0
+  _damageOnTouch: 1
   _damageableTag: Player
   _damageableLayers:
     serializedVersion: 2
@@ -166,10 +167,10 @@ MonoBehaviour:
   _syncRotation: 1
   _syncVelocity: 1
   _useInterpolation: 1
-  _sendRate: 20
-  _ownershipTransfer: 0
+  _sendRate: 30
+  _ownershipTransfer: 1
   _networkCullingDistance: 50
-  _enableClientPrediction: 1
+  _enableClientPrediction: 0
   _predictionTolerance: 1
   _correctionSpeed: 10
   _showDebugInfo: 0

@@ -1,11 +1,11 @@
 using UnityEngine;
+using DWHITE;
 
-
-namespace DWHITE.Audio
+namespace DWHITE
 {
     /// <summary>
     /// Player音效控制器 - 基于事件驱动的音效系统
-    /// 订阅PlayerStateManager的状态变化，独立管理角色音效
+    /// 订阅PlayerStatusManager的状态变化，独立管理角色音效
     /// 基于最小可行原则，专注核心音效功能
     /// </summary>
     public partial class PlayerAudioController : MonoBehaviour
@@ -30,7 +30,7 @@ namespace DWHITE.Audio
         
         #region 组件引用
         
-        private PlayerStateManager _stateManager;
+        private PlayerStatusManager _statusManager;
         private NetworkPlayerController _networkPlayerController;
         private bool _isNetworkPlayer;
         
@@ -62,7 +62,7 @@ namespace DWHITE.Audio
         private void Awake()
         {
             // 获取组件引用
-            _stateManager = _playerRoot.GetComponent<PlayerStateManager>();
+            _statusManager = _playerRoot.GetComponent<PlayerStatusManager>();
             _networkPlayerController = _playerRoot.GetComponent<NetworkPlayerController>();
             _isNetworkPlayer = _networkPlayerController != null;
             
@@ -90,26 +90,22 @@ namespace DWHITE.Audio
         
         private void Update()
         {
-            if (_audioData == null || _stateManager == null) return;
+            if (_audioData == null || _statusManager == null) return;
             
             // 更新持续性音效
             UpdateContinuousAudio();
         }
-        
-        #endregion
+          #endregion
         
         #region 事件订阅管理
-        
-        private void SubscribeToStateEvents()
+          private void SubscribeToStateEvents()
         {
-            if (_stateManager == null) return;
+            if (_statusManager == null) return;
             
-            // 订阅通用状态变化
-            PlayerStateManager.OnStateChanged += HandleStateChanged;
-            
-            // 订阅特定状态变化
-            PlayerStateManager.OnGroundStateChanged += HandleGroundStateChanged;
-            PlayerStateManager.OnMovementChanged += HandleMovementChanged;
+            // 订阅当前玩家实例的状态变化事件
+            _statusManager.OnStateChanged += HandleStateChanged;
+            _statusManager.OnGroundStateChanged += HandleGroundStateChanged;
+            _statusManager.OnMovementChanged += HandleMovementChanged;
             
             if (_showDebugInfo)
                 Debug.Log("[PlayerAudioController] 已订阅状态变化事件");
@@ -117,12 +113,12 @@ namespace DWHITE.Audio
         
         private void UnsubscribeFromStateEvents()
         {
-            // 取消订阅通用状态变化
-            PlayerStateManager.OnStateChanged -= HandleStateChanged;
+            if (_statusManager == null) return;
             
-            // 取消订阅特定状态变化
-            PlayerStateManager.OnGroundStateChanged -= HandleGroundStateChanged;
-            PlayerStateManager.OnMovementChanged -= HandleMovementChanged;
+            // 取消订阅当前玩家实例的状态变化事件
+            _statusManager.OnStateChanged -= HandleStateChanged;
+            _statusManager.OnGroundStateChanged -= HandleGroundStateChanged;
+            _statusManager.OnMovementChanged -= HandleMovementChanged;
             
             if (_showDebugInfo)
                 Debug.Log("[PlayerAudioController] 已取消订阅状态变化事件");

@@ -30,6 +30,7 @@ namespace DWHITE {
 		private bool _firePressed;
 		private bool _jumpPressed;
 		private bool _sprintPressed;
+		private bool _reloadPressed;
 	    
     #region 输入事件
 	    /// <summary>移动输入事件 (Vector2: WASD 输入)</summary>
@@ -45,8 +46,7 @@ namespace DWHITE {
 	    public static event Action<Vector2> OnLookInput;
 	    
 	    /// <summary>开火按下事件 (单帧)</summary>
-	    public static event Action OnFirePressed;
-	      /// <summary>开火释放事件</summary>
+	    public static event Action OnFirePressed;	    /// <summary>开火释放事件</summary>
 		public static event Action OnFireReleased;
 		
 		/// <summary>奔跑按下事件 (单帧)</summary>
@@ -54,6 +54,12 @@ namespace DWHITE {
 		
 		/// <summary>奔跑释放事件</summary>
 		public static event Action OnSprintReleased;
+		
+		/// <summary>装弹按下事件 (单帧)</summary>
+		public static event Action OnReloadPressed;
+		
+		/// <summary>武器切换事件 (float: 滚轮方向值，正数向上，负数向下)</summary>
+		public static event Action<float> OnWeaponSwitchInput;
     #endregion
 	    
     #region 属性访问
@@ -82,6 +88,9 @@ namespace DWHITE {
 		
 		/// <summary>奔跑是否持续按住</summary>
 		public bool SprintHeld => _sprintHeld;
+		
+		/// <summary>装弹是否被按下 (单帧)</summary>
+		public bool ReloadPressed => _reloadPressed;
 	    
 	    /// <summary>鼠标灵敏度</summary>
 	    public float MouseSensitivity => _mouseSensitivity;
@@ -164,6 +173,12 @@ namespace DWHITE {
         // 奔跑输入
         playerActions.Sprint.performed += OnSprintInputPressed;
         playerActions.Sprint.canceled += OnSprintInputReleased;
+        
+        // 装弹输入
+        playerActions.Reload.performed += OnReloadInputPressed;
+        
+        // 武器切换输入
+        playerActions.Switch.performed += OnSwitchInputReceived;
 	    }
 	    
 	    private void CleanupInputSystem()
@@ -197,11 +212,16 @@ namespace DWHITE {
         {
             OnSprintPressed?.Invoke();
         }
+        if (_reloadPressed)
+        {
+            OnReloadPressed?.Invoke();
+        }
 	    }    private void ResetFrameInputs()
     {
         _firePressed = false;
         _jumpPressed = false;
         _sprintPressed = false;
+        _reloadPressed = false;
     }
 	    
 	    private Vector2 ApplyDeadZone(Vector2 input)
@@ -282,6 +302,18 @@ namespace DWHITE {
     {
         _sprintHeld = false;
         OnSprintReleased?.Invoke();
+    }
+    
+    private void OnReloadInputPressed(InputAction.CallbackContext context)
+    {
+        _reloadPressed = true;
+        OnReloadPressed?.Invoke();
+    }
+    
+    private void OnSwitchInputReceived(InputAction.CallbackContext context)
+    {
+        float switchValue = context.ReadValue<float>();
+        OnWeaponSwitchInput?.Invoke(switchValue);
     }
     #endregion
 	    

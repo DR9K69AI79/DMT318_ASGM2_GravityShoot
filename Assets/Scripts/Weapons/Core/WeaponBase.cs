@@ -168,10 +168,11 @@ namespace DWHITE.Weapons
         /// 子类重写的卸载逻辑
         /// </summary>
         protected virtual void OnUnequip() { }
-        
+
         #endregion
-        
-        #region 射击系统        /// <summary>
+
+        #region 射击系统        
+        /// <summary>
         /// 尝试开火
         /// </summary>
         /// <param name="targetDirection">射击方向</param>
@@ -184,7 +185,7 @@ namespace DWHITE.Weapons
             Debug.Log($"[武器基类] IsReloading: {_isReloading}");
             Debug.Log($"[武器基类] IsEquipped: {_isEquipped}");
             Debug.Log($"[武器基类] 射击间隔: {Time.time - _lastFireTime} / {_weaponData?.FireInterval}");
-            
+
             if (!CanFire)
             {
                 Debug.Log("[武器基类] 无法开火");
@@ -195,7 +196,7 @@ namespace DWHITE.Weapons
                 }
                 return false;
             }
-            
+
             Debug.Log("[武器基类] 开火条件满足，调用Fire方法");
             Fire(targetDirection);
             Debug.Log("[武器基类] Fire方法执行完成");
@@ -423,12 +424,11 @@ namespace DWHITE.Weapons
         #endregion
         
         #region 网络同步
-        
-        /// <summary>
+          /// <summary>
         /// 网络同步开火事件
         /// </summary>
         [PunRPC]
-        protected virtual void NetworkFire(Vector3 direction, float timestamp)
+        public virtual void NetworkFire(Vector3 direction, float timestamp)
         {
             // 子类实现具体的网络同步开火逻辑
         }

@@ -45,6 +45,23 @@ namespace DWHITE
         public bool sprintPressed;
         #endregion
 
+        #region Health State
+        [Header("生命值状态")]
+        public float currentHealth;
+        public float maxHealth;
+        public bool isAlive;
+        #endregion
+
+        #region Weapon State  
+        [Header("武器状态")]
+        public bool hasWeapon;
+        public int currentWeaponIndex;
+        public int currentAmmo;
+        public int maxAmmo;
+        public bool isReloading;
+        public string weaponName;
+        #endregion
+
         /// <summary>
         /// 创建一个空的状态数据
         /// </summary>
@@ -52,7 +69,13 @@ namespace DWHITE
         {
             upAxis = Vector3.up,
             forwardAxis = Vector3.forward,
-            rightAxis = Vector3.right
+            rightAxis = Vector3.right,
+            maxHealth = 100f,
+            currentHealth = 100f,
+            isAlive = true,
+            hasWeapon = false,
+            currentWeaponIndex = -1,
+            weaponName = ""
         };
 
         /// <summary>
@@ -66,7 +89,13 @@ namespace DWHITE
                    isJumping == other.isJumping &&
                    jumpPhase == other.jumpPhase &&
                    Vector3.Equals(velocity, other.velocity) &&
-                   Vector2.Equals(moveInput, other.moveInput);
+                   Vector2.Equals(moveInput, other.moveInput) &&
+                   currentHealth == other.currentHealth &&
+                   isAlive == other.isAlive &&
+                   currentWeaponIndex == other.currentWeaponIndex &&
+                   currentAmmo == other.currentAmmo &&
+                   isReloading == other.isReloading &&
+                   hasWeapon == other.hasWeapon;
         }
     }
 
@@ -96,6 +125,9 @@ namespace DWHITE
         JumpStateChanged,
         GroundStateChanged,
         SprintStateChanged,
-        EnvironmentChanged
+        EnvironmentChanged,
+        HealthChanged,
+        WeaponChanged,
+        AmmoChanged
     }
 }

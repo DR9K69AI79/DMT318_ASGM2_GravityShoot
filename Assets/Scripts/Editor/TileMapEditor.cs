@@ -13,7 +13,7 @@ namespace DWHITE.Editor
     public class TileMapEditor : EditorWindow
     {
         #region 配置常量
-        private const string TILE_FOLDER_PATH = "Assets/Art/KayKit/Prefab";
+        private const string TILE_FOLDER_PATH = "Assets/Art/Prefab";
         private const string MAP_DATA_FOLDER = "Assets/MapData";
         private const int TOOLBAR_HEIGHT = 60;
         private const int SIDEBAR_WIDTH = 250;

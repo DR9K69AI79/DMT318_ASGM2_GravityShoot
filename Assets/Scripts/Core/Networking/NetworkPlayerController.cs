@@ -75,7 +75,7 @@ namespace DWHITE
         private PlayerMotor _playerMotor;
         private PlayerInput _playerInput;
         private PlayerView _playerView;
-        private PlayerStateManager _playerStateManager;
+        private PlayerStatusManager _playerStatusManager;
         private Rigidbody _rigidbody;
 
         // 网络状态
@@ -114,14 +114,14 @@ namespace DWHITE
         #endregion
         
         #region Unity Lifecycle
-        
-        private void Awake()
+          private void Awake()
         {
             // 获取组件引用
             _playerMotor = GetComponent<PlayerMotor>();
             _playerInput = GetComponent<PlayerInput>();
             _playerView = GetComponentInChildren<PlayerView>();
             _rigidbody = GetComponent<Rigidbody>();
+            _playerStatusManager = GetComponent<PlayerStatusManager>();
             
             // 初始化状态历史
             _stateHistory = new System.Collections.Generic.Queue<NetworkPlayerState>();
@@ -250,10 +250,9 @@ namespace DWHITE
             if (_playerMotor == null || _playerInput == null) return;
 
             // 收集PlayerState数据用于动画同步
-            PlayerStateData localPlayerState = PlayerStateData.Empty;
-            if (_playerStateManager != null)
+            PlayerStateData localPlayerState = PlayerStateData.Empty;            if (_playerStatusManager != null)
             {
-                localPlayerState = _playerStateManager.GetStateSnapshot();
+                localPlayerState = _playerStatusManager.GetStateSnapshot();
             }
 
             // 收集当前状态
@@ -438,7 +437,7 @@ namespace DWHITE
         /// </summary>
         private void ApplyRemotePlayerState()
         {
-            if (_playerStateManager == null) return;
+            if (_playerStatusManager == null) return;
             
             // 创建PlayerStateData快照
             var remoteStateData = new PlayerStateData

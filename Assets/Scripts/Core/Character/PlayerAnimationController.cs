@@ -1,20 +1,22 @@
 using UnityEngine;
+using DWHITE.Weapons;
 
 namespace DWHITE
 {
     /// <summary>
     /// 玩家动画控制器 - 基于事件驱动的动画系统
-    /// 订阅PlayerStateManager的状态变化，独立管理角色动画
+    /// 订阅PlayerStatusManager的状态变化，独立管理角色动画
     /// 基于最小可行原则，专注核心动画功能
-    /// </summary>
+    /// </summary>    
     public class PlayerAnimationController : MonoBehaviour
     {
         #region Dependencies
         [SerializeField] private GameObject _playerRoot;
         
         private Animator _animator;
-        private PlayerStateManager _stateManager;
+        private PlayerStatusManager _statusManager;
         private NetworkPlayerController _networkPlayerController;
+        private PlayerWeaponController _weaponController;
         private bool _isNetworkPlayer;
 
         #endregion
@@ -26,7 +28,6 @@ namespace DWHITE
         [SerializeField] private float _animationSmoothing = 10f;
         [Tooltip("是否启用调试信息显示")]
         [SerializeField] private bool _showDebugInfo = false;
-
         [Header("动画参数名称")]
         [Tooltip("速度参数名")]
         [SerializeField] private string _velocityParam = "velocity";
@@ -45,9 +46,20 @@ namespace DWHITE
         [Tooltip("着地触发器参数名")]
         [SerializeField] private string _triggerLandParam = "triggerLand";
 
+        [Header("武器动画层配置")]
+        [Tooltip("武器动画层索引")]
+        [SerializeField] private int _weaponAnimationLayer = 1;
+        [Tooltip("武器动画触发模式")]
+        [SerializeField] private bool _useDirectAnimationNames = true;
+
+        [Tooltip("武器动画层参数名")]
+        [SerializeField] private string _hasWeaponParam = "hasWeapon";
+
         #endregion
 
         #region Animation State
+        // 武器动画层权重
+        private float _currentWeaponAnimationLayerWeight;
 
         // 当前动画参数值（用于平滑过渡）
         private float _currentVelocity;
@@ -56,6 +68,7 @@ namespace DWHITE
         private bool _currentIsGrounded;
         private bool _currentIsSprinting;
         private bool _currentIsInAir;
+        private bool _currentHasWeapon;
 
         // 目标动画参数值
         private float _targetVelocity;
@@ -65,37 +78,33 @@ namespace DWHITE
 
         #endregion
 
-        #region Unity Lifecycle
-
+        #region Unity Lifecycle        
         private void Awake()
         {
-            _animator = _playerRoot.GetComponent<Animator>();
-            _stateManager = _playerRoot.GetComponent<PlayerStateManager>();
+            _animator = GetComponent<Animator>();
+            _statusManager = _playerRoot.GetComponent<PlayerStatusManager>();
             _networkPlayerController = _playerRoot.GetComponent<NetworkPlayerController>();
+            _weaponController = _playerRoot.GetComponent<PlayerWeaponController>();
             _isNetworkPlayer = _networkPlayerController != null;
-        }
-
-        private void OnEnable()
+        }        private void OnEnable()
         {
-            // 订阅状态变化事件
-            PlayerStateManager.OnMovementChanged += HandleMovementChanged;
-            PlayerStateManager.OnGroundStateChanged += HandleGroundStateChanged;
-            PlayerStateManager.OnSprintStateChanged += HandleSprintStateChanged;
-        }
-
-        private void OnDisable()
+            // 事件订阅将在Start中进行，确保所有组件都已初始化
+        }        private void OnDisable()
         {
-            // 取消订阅状态变化事件
-            PlayerStateManager.OnMovementChanged -= HandleMovementChanged;
-            PlayerStateManager.OnGroundStateChanged -= HandleGroundStateChanged;
-            PlayerStateManager.OnSprintStateChanged -= HandleSprintStateChanged;
+            // 取消订阅当前玩家的状态变化事件
+            UnsubscribeFromEvents();
         }
 
         private void Start()
         {
             // 初始化动画状态
             InitializeAnimationState();
-        }        private void Update()
+            
+            // 订阅事件（在Start中确保所有组件都已初始化）
+            SubscribeToEvents();
+        }
+
+        private void Update()
         {
             // 对于远程网络玩家，直接从NetworkPlayerController获取状态
             if (_isNetworkPlayer && _networkPlayerController != null && !_networkPlayerController.IsLocalPlayer)
@@ -158,9 +167,7 @@ namespace DWHITE
                     }
                 }
             }
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 处理冲刺状态变化
         /// </summary>
         private void HandleSprintStateChanged(PlayerStateChangedEventArgs args)
@@ -174,18 +181,97 @@ namespace DWHITE
             }
         }
 
+        /// <summary>
+        /// 处理武器动画触发
+        /// </summary>
+        private void HandleWeaponAnimationTriggered(string animationName)
+        {
+            if (_animator == null || string.IsNullOrEmpty(animationName)) return;
+
+            if (_useDirectAnimationNames)
+            {
+                // 直接播放指定名称的动画
+                PlayWeaponAnimation(animationName);
+            }
+            else
+            {
+                // 通过触发器参数播放动画
+                _animator.SetTrigger(animationName);
+            }            if (_showDebugInfo)
+                Debug.Log($"[动画控制器] 触发武器动画: {animationName}");
+        }
+
         #endregion
 
-        #region Animation Updates        
+        #region Weapon Animation
+
+        /// <summary>
+        /// 播放武器动画
+        /// </summary>
+        private void PlayWeaponAnimation(string animationName)
+        {
+            if (_animator == null || string.IsNullOrEmpty(animationName)) return;
+
+            try
+            {
+                // 在指定的武器动画层播放动画
+                _animator.Play(animationName, _weaponAnimationLayer);
+
+                if (_showDebugInfo)
+                    Debug.Log($"[动画控制器] 播放武器动画: {animationName} (Layer: {_weaponAnimationLayer})");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[动画控制器] 播放武器动画失败: {animationName} - {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 停止当前武器动画
+        /// </summary>
+        public void StopWeaponAnimation()
+        {
+            if (_animator == null) return;
+
+            // 播放待机动画或停止当前动画
+            var currentWeapon = _statusManager?.CurrentWeapon;
+            if (currentWeapon?.WeaponData != null && !string.IsNullOrEmpty(currentWeapon.WeaponData.IdleAnimationName))
+            {
+                PlayWeaponAnimation(currentWeapon.WeaponData.IdleAnimationName);
+            }
+        }
+
+        /// <summary>
+        /// 获取当前武器动画状态
+        /// </summary>
+        public AnimatorStateInfo GetCurrentWeaponAnimationState()
+        {
+            return _animator != null ? _animator.GetCurrentAnimatorStateInfo(_weaponAnimationLayer) : default;
+        }
+
+        /// <summary>
+        /// 检查武器动画是否正在播放
+        /// </summary>
+        public bool IsWeaponAnimationPlaying(string animationName)
+        {
+            if (_animator == null || string.IsNullOrEmpty(animationName)) return false;
+
+            var stateInfo = _animator.GetCurrentAnimatorStateInfo(_weaponAnimationLayer);
+            return stateInfo.IsName(animationName) && stateInfo.normalizedTime < 1.0f;
+        }
+
+        #endregion
+
+        #region Animation Updates
 
         /// <summary>
         /// 初始化动画状态
         /// </summary>
         private void InitializeAnimationState()
         {
-            if (_stateManager != null)
+            if (_statusManager != null)
             {
-                var currentState = _stateManager.GetStateSnapshot();
+                var currentState = _statusManager.GetStateSnapshot();
 
                 // 初始化所有动画参数
                 _targetVelocity = currentState.velocity.magnitude;
@@ -197,6 +283,7 @@ namespace DWHITE
                 _currentIsGrounded = currentState.isGrounded;
                 _currentIsSprinting = currentState.isSprinting;
                 _currentIsInAir = !currentState.isGrounded;
+                _currentHasWeapon = currentState.hasWeapon;
 
                 // 初始化跳跃状态追踪
                 _wasGroundedLastFrame = currentState.isGrounded;
@@ -210,6 +297,8 @@ namespace DWHITE
                     _animator.SetBool(_isGroundedParam, _currentIsGrounded);
                     _animator.SetBool(_isSprintingParam, _currentIsSprinting);
                     _animator.SetBool(_isInAirParam, _currentIsInAir);
+                    _animator.SetBool(_hasWeaponParam, _currentHasWeapon);
+                    _animator.SetLayerWeight(_weaponAnimationLayer, _currentHasWeapon ? 1f : 0f);
                 }
             }
         }
@@ -230,6 +319,8 @@ namespace DWHITE
             _animator.SetFloat(_velocityParam, _currentVelocity);
             _animator.SetFloat(_velocityForwardParam, _currentVelocityForward);
             _animator.SetFloat(_velocityStrafeParam, _currentVelocityStrafe);
+
+            _animator.SetLayerWeight(_weaponAnimationLayer, _currentHasWeapon ? 1f : 0f);
         }
 
         #endregion
@@ -301,12 +392,11 @@ namespace DWHITE
             {
                 _animator.SetBool(_isInAirParam, isInAir);
             }
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 获取当前动画状态信息
         /// </summary>
-        public AnimatorStateInfo GetCurrentAnimationState(int layerIndex = 0)        {
+        public AnimatorStateInfo GetCurrentAnimationState(int layerIndex = 0)
+        {
             return _animator != null ? _animator.GetCurrentAnimatorStateInfo(layerIndex) : default;
         }
 
@@ -318,7 +408,7 @@ namespace DWHITE
         {
             if (!_showDebugInfo || _animator == null) return;
 
-            GUILayout.BeginArea(new Rect(320, 200, 300, 350));
+            GUILayout.BeginArea(new Rect(320, 200, 300, 400));
             GUILayout.Label("=== Animation Controller ===");
             GUILayout.Label($"Velocity: {_currentVelocity:F2} → {_targetVelocity:F2}");
             GUILayout.Label($"Velocity Forward: {_currentVelocityForward:F2} → {_targetVelocityForward:F2}");
@@ -332,6 +422,13 @@ namespace DWHITE
                 var stateInfo = _animator.GetCurrentAnimatorStateInfo(0);
                 GUILayout.Label($"Current State: {stateInfo.shortNameHash}");
                 GUILayout.Label($"State Time: {stateInfo.normalizedTime:F2}");
+                
+                // 显示武器动画层状态
+                GUILayout.Label("--- Weapon Animation Layer ---");
+                var weaponStateInfo = _animator.GetCurrentAnimatorStateInfo(_weaponAnimationLayer);
+                GUILayout.Label($"Weapon State: {weaponStateInfo.shortNameHash}");
+                GUILayout.Label($"Weapon State Time: {weaponStateInfo.normalizedTime:F2}");
+                GUILayout.Label($"Weapon Layer: {_weaponAnimationLayer}");
                 
                 // 显示当前触发器状态（如果需要）
                 GUILayout.Label("--- Animator Parameters ---");
@@ -388,6 +485,38 @@ namespace DWHITE
                         _animator.SetTrigger(_triggerJumpParam);
                     }
                 }
+            }
+        }
+
+        #endregion
+
+        #region Event Subscription
+
+        /// <summary>
+        /// 订阅状态管理器事件
+        /// </summary>
+        private void SubscribeToEvents()
+        {
+            if (_statusManager != null)
+            {
+                _statusManager.OnMovementChanged += HandleMovementChanged;
+                _statusManager.OnGroundStateChanged += HandleGroundStateChanged;
+                _statusManager.OnSprintStateChanged += HandleSprintStateChanged;
+                _statusManager.OnWeaponAnimationTriggered += HandleWeaponAnimationTriggered;
+            }
+        }
+        
+        /// <summary>
+        /// 取消订阅状态管理器事件
+        /// </summary>
+        private void UnsubscribeFromEvents()
+        {
+            if (_statusManager != null)
+            {
+                _statusManager.OnMovementChanged -= HandleMovementChanged;
+                _statusManager.OnGroundStateChanged -= HandleGroundStateChanged;
+                _statusManager.OnSprintStateChanged -= HandleSprintStateChanged;
+                _statusManager.OnWeaponAnimationTriggered -= HandleWeaponAnimationTriggered;
             }
         }
 

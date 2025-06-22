@@ -7,6 +7,11 @@ namespace DWHITE
     /// 玩家输入接口 - 提供简化的输入访问
     /// 作为 InputManager 的前端接口，支持输入过滤和本地化控制
     /// 适用于需要独立输入控制的角色组件
+    /// 
+    /// 架构说明：
+    /// - 本组件只负责输入过滤和状态暴露
+    /// - 不主动转发事件到其他组件
+    /// - Controller组件应主动拉取输入状态
     /// </summary>
     public class PlayerInput : MonoBehaviour
     {
@@ -15,19 +20,23 @@ namespace DWHITE
         [SerializeField] private bool _enableLook = true;
         [SerializeField] private bool _enableFire = true;
         [SerializeField] private bool _enableSprint = true;
+        [SerializeField] private bool _enableReload = true;
+        [SerializeField] private bool _enableWeaponSwitch = true;
 
         [Header("调试信息")]
         [SerializeField] private bool _showDebugInfo = false;
 
         // 输入管理器引用
         private InputManager _inputManager;
-
+        
         // 过滤后的输入状态
         private Vector2 _filteredMoveInput;
         private bool _filteredJumpPressed;
         private Vector2 _filteredLookInput;
         private bool _filteredFirePressed;
         private bool _filteredSprintPressed;
+        private bool _filteredReloadPressed;
+        private float _weaponSwitchInput;
 
         #region 输入属性访问
         /// <summary>移动输入 (已过滤)</summary>
@@ -54,6 +63,12 @@ namespace DWHITE
         /// <summary>奔跑持续按住 (已过滤)</summary>
         public bool SprintHeld => _enableSprint && _inputManager != null ? _inputManager.SprintHeld : false;
 
+        /// <summary>装弹按下 (已过滤，单帧)</summary>
+        public bool ReloadPressed => _enableReload ? _filteredReloadPressed : false;
+
+        /// <summary>武器切换输入 (已过滤)</summary>
+        public float WeaponSwitchInput => _enableWeaponSwitch ? _weaponSwitchInput : 0f;
+
         // 便捷属性访问
         /// <summary>鼠标灵敏度</summary>
         public float MouseSensitivity => _inputManager != null ? _inputManager.MouseSensitivity : 1f;
@@ -69,6 +84,7 @@ namespace DWHITE
         #endregion
 
         #region Unity 生命周期
+        
         private void Start()
         {
             _inputManager = InputManager.Instance;
@@ -102,10 +118,12 @@ namespace DWHITE
             _filteredFirePressed = false;
             _filteredJumpPressed = false;
             _filteredSprintPressed = false;
+            _filteredReloadPressed = false;
+            _weaponSwitchInput = 0f; // 重置武器切换输入
         }
         #endregion
 
-        #region 事件订阅管理
+        #region 事件订阅管理        
         private void SubscribeToInputEvents()
         {
             if (_inputManager == null)
@@ -117,7 +135,10 @@ namespace DWHITE
                 InputManager.OnJumpPressed += OnJumpPressed;
                 InputManager.OnLookInput += OnLookInput;
                 InputManager.OnFirePressed += OnFirePressed;
+                InputManager.OnFireReleased += OnFireReleased;
                 InputManager.OnSprintPressed += OnSprintPressed;
+                InputManager.OnReloadPressed += OnReloadPressed;
+                InputManager.OnWeaponSwitchInput += OnWeaponSwitchInput;
 
                 if (_showDebugInfo)
                     Debug.Log("[PlayerInput] 已订阅输入事件");
@@ -130,7 +151,10 @@ namespace DWHITE
             InputManager.OnJumpPressed -= OnJumpPressed;
             InputManager.OnLookInput -= OnLookInput;
             InputManager.OnFirePressed -= OnFirePressed;
+            InputManager.OnFireReleased -= OnFireReleased;
             InputManager.OnSprintPressed -= OnSprintPressed;
+            InputManager.OnReloadPressed -= OnReloadPressed;
+            InputManager.OnWeaponSwitchInput -= OnWeaponSwitchInput;
 
             if (_showDebugInfo)
                 Debug.Log("[PlayerInput] 已取消订阅输入事件");
@@ -152,9 +176,25 @@ namespace DWHITE
         {
             _filteredLookInput = input;
         }
+
         private void OnFirePressed()
         {
             _filteredFirePressed = true;
+        }
+
+        private void OnFireReleased()
+        {
+            // 开火释放事件处理（如果需要）
+        }
+
+        private void OnReloadPressed()
+        {
+            _filteredReloadPressed = true;
+        }
+
+        private void OnWeaponSwitchInput(float switchValue)
+        {
+            _weaponSwitchInput = switchValue;
         }
 
         private void OnSprintPressed()
@@ -171,16 +211,20 @@ namespace DWHITE
         /// <param name="look">视角输入</param>
         /// <param name="fire">开火输入</param>
         /// <param name="sprint">奔跑输入</param>
-        public void SetInputEnabled(bool move, bool look, bool fire, bool sprint = true)
+        /// <param name="reload">装弹输入</param>
+        /// <param name="weaponSwitch">武器切换输入</param>
+        public void SetInputEnabled(bool move, bool look, bool fire, bool sprint = true, bool reload = true, bool weaponSwitch = true)
         {
             _enableMove = move;
             _enableLook = look;
             _enableFire = fire;
             _enableSprint = sprint;
+            _enableReload = reload;
+            _enableWeaponSwitch = weaponSwitch;
 
             if (_showDebugInfo)
             {
-                Debug.Log($"[PlayerInput] 输入设置 - Move: {move}, Look: {look}, Fire: {fire}, Sprint: {sprint}");
+                Debug.Log($"[PlayerInput] 输入设置 - Move: {move}, Look: {look}, Fire: {fire}, Sprint: {sprint}, Reload: {reload}, Switch: {weaponSwitch}");
             }
         }
 
@@ -192,7 +236,7 @@ namespace DWHITE
         /// <param name="fire">开火输入</param>
         public void SetInputEnabled(bool move, bool look, bool fire)
         {
-            SetInputEnabled(move, look, fire, true);
+            SetInputEnabled(move, look, fire, true, true, true);
         }
 
         /// <summary>
@@ -214,6 +258,7 @@ namespace DWHITE
             if (_showDebugInfo)
                 Debug.Log($"[PlayerInput] 视角输入: {enabled}");
         }
+
         /// <summary>
         /// 启用/禁用开火输入
         /// </summary>
@@ -232,6 +277,26 @@ namespace DWHITE
             _enableSprint = enabled;
             if (_showDebugInfo)
                 Debug.Log($"[PlayerInput] 奔跑输入: {enabled}");
+        }
+
+        /// <summary>
+        /// 启用/禁用装弹输入
+        /// </summary>
+        public void SetReloadEnabled(bool enabled)
+        {
+            _enableReload = enabled;
+            if (_showDebugInfo)
+                Debug.Log($"[PlayerInput] 装弹输入: {enabled}");
+        }
+
+        /// <summary>
+        /// 启用/禁用武器切换输入
+        /// </summary>
+        public void SetWeaponSwitchEnabled(bool enabled)
+        {
+            _enableWeaponSwitch = enabled;
+            if (_showDebugInfo)
+                Debug.Log($"[PlayerInput] 武器切换输入: {enabled}");
         }
 
         /// <summary>
@@ -293,12 +358,13 @@ namespace DWHITE
         {
             return _inputManager != null ? _inputManager.GetAvailableControlSchemes() : new string[0];
         }
+
         /// <summary>
         /// 临时启用/禁用所有输入
         /// </summary>
         public void SetAllInputEnabled(bool enabled)
         {
-            SetInputEnabled(enabled, enabled, enabled, enabled);
+            SetInputEnabled(enabled, enabled, enabled, enabled, enabled, enabled);
         }
         #endregion
 
@@ -307,7 +373,7 @@ namespace DWHITE
         {
             if (Time.frameCount % 60 == 0) // 每秒显示一次
             {
-                Debug.Log($"[PlayerInput] Move: {MoveInput}, Jump: {JumpPressed}/{JumpHeld}, Look: {LookInput}, Fire: {FirePressed}/{FireHeld}");
+                Debug.Log($"[PlayerInput] Move: {MoveInput}, Jump: {JumpPressed}/{JumpHeld}, Look: {LookInput}, Fire: {FirePressed}/{FireHeld}, Reload: {ReloadPressed}, Switch: {WeaponSwitchInput}");
             }
         }
 
@@ -328,9 +394,12 @@ namespace DWHITE
             GUILayout.Label($"Look Input: {LookInput}");
             GUILayout.Label($"Fire: Pressed={FirePressed}, Held={FireHeld}");
             GUILayout.Label($"Sprint: Pressed={SprintPressed}, Held={SprintHeld}");
+            GUILayout.Label($"Reload: Pressed={ReloadPressed}");
+            GUILayout.Label($"Weapon Switch: {WeaponSwitchInput}");
             GUILayout.Space(5);
 
-            GUILayout.Label($"Filters: Move={_enableMove}, Look={_enableLook}, Fire={_enableFire}, Sprint={_enableSprint}");
+            GUILayout.Label($"Filters: Move={_enableMove}, Look={_enableLook}, Fire={_enableFire}");
+            GUILayout.Label($"         Sprint={_enableSprint}, Reload={_enableReload}, Switch={_enableWeaponSwitch}");
             GUILayout.Label($"Mouse Sensitivity: {MouseSensitivity}");
             GUILayout.Label($"Invert Y: {InvertY}");
 
@@ -360,7 +429,6 @@ namespace DWHITE
             if (_showDebugInfo)
                 Debug.Log($"[PlayerInput] 重新初始化完成，InputManager状态: {(_inputManager != null ? "已连接" : "未连接")}");
         }
-
         #endregion
     }
 }
