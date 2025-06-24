@@ -51,6 +51,7 @@ MonoBehaviour:
   sprintAccelerationMultiplier: 1.5
   sprintMode: 0
   sprintTransitionSpeed: 5
+  enterAirGravityThreshold: 10
   airAcceleration:
     serializedVersion: 2
     m_Curve:

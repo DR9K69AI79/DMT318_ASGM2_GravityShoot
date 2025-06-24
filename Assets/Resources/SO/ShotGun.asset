@@ -66,7 +66,7 @@ MonoBehaviour:
   _fireSound: {fileID: 8300000, guid: 0addcc409a57b4a43b86a3d2310ac5b4, type: 3}
   _reloadSound: {fileID: 8300000, guid: c565065df3907944b8b58f0d27066ba8, type: 3}
   _emptySound: {fileID: 8300000, guid: 0c187ee2790c74c4e9985aa1ee1a12d5, type: 3}
-  _muzzleFlashPrefab: {fileID: 719657563245746768, guid: 0e16f1cdd6f7c7b449e5feb2ac6c130f,
+  _muzzleFlashPrefab: {fileID: 719657563245746768, guid: 54c665c032be30844afec76a30fc3c0d,
     type: 3}
   _recoilPattern: {x: 2, y: 6}
   _recoilRecoveryTime: 1.2
