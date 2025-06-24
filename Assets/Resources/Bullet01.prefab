@@ -100,34 +100,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4643bfaea0de9fd4ebe20a48616ea36b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _damage: 20
-  _speed: 50
-  _lifetime: 10
-  _hitLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  _useCustomGravity: 0
-  _gravityScale: 0.8
-  _drag: 0
-  _maxBounces: 10
-  _bounceEnergyLoss: 0.8
-  _minBounceVelocity: 1
-  _impactEffectPrefab: {fileID: 919132149155446097, guid: 59b6e6294096bc94d9a3082a1c983de1,
-    type: 3}
-  _trailEffectPrefab: {fileID: 0}
-  _impactSound: {fileID: 8300000, guid: 172f576bc4226094180d5993f9325d57, type: 3}
-  _bounceSound: {fileID: 0}
   _showDebugInfo: 1
-  _showTrajectory: 1
+  _showTrajectory: 0
   _explodeOnImpact: 0
   _explosionDelay: 0
   _penetrateTargets: 0
   _maxPenetrations: 0
-  _damageOnTouch: 1
+  _damageOnTouch: 0
   _damageableTag: Player
   _damageableLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4294967295
+  _maxRange: 100
 --- !u!114 &362735478477318938
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -270,6 +254,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: TrailEffector01
+      objectReference: {fileID: 0}
+    - target: {fileID: 1697291515947970758, guid: c983806bad792ad46befd059b0ac568b,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5246260650776048994, guid: c983806bad792ad46befd059b0ac568b,
         type: 3}

@@ -1,5 +1,6 @@
 using UnityEngine;
 using Photon.Pun;
+using DWHITE.Weapons.Network;
 
 namespace DWHITE.Weapons
 {
@@ -16,11 +17,13 @@ namespace DWHITE.Weapons
         [SerializeField] private float _explosionDelay = 0f;
         [SerializeField] private bool _penetrateTargets = false;
         [SerializeField] private int _maxPenetrations = 0;
-        
-        [Header("伤害设置")]
+          [Header("伤害设置")]
         [SerializeField] private bool _damageOnTouch = true;
         [SerializeField] private string _damageableTag = "Player";
         [SerializeField] private LayerMask _damageableLayers = -1;
+        
+        [Header("距离设置")]
+        [SerializeField] private float _maxRange = 100f;
         
         #endregion
         
@@ -32,15 +35,28 @@ namespace DWHITE.Weapons
         #endregion
         
         #region Unity 生命周期
-        
-        protected override void Start()
+          protected override void Start()
         {
             base.Start();
             
             // 如果是网络生成的投射物，从初始化数据中获取参数
             if (photonView != null && photonView.InstantiationData != null)
             {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物] 开始网络配置，所有者: {photonView.Owner?.NickName}, IsMine: {photonView.IsMine}");
+                
                 ConfigureFromNetworkData(photonView.InstantiationData);
+                
+                // 启用网络同步组件的调试信息
+                var networkSync = GetComponent<ProjectileNetworkSync>();
+                if (networkSync != null && _showDebugInfo)
+                {
+                    networkSync.EnableDebugInfo(true);
+                }
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.Log("[标准投射物] 本地投射物，无网络数据");
             }
         }
         
@@ -58,41 +74,146 @@ namespace DWHITE.Weapons
                 ConfigureFromNetworkData(info.photonView.InstantiationData);
             }
         }
-        
-        /// <summary>
+          /// <summary>
         /// 从网络数据配置投射物
         /// </summary>
         private void ConfigureFromNetworkData(object[] data)
         {
-            if (data.Length >= 4)
+            try
             {
-                // 解析速度数据
-                Vector3 velocity = new Vector3((float)data[0], (float)data[1], (float)data[2]);
-                _damage = (float)data[3];
-                
-                if (data.Length >= 5)
+                if (data.Length >= 4)
                 {
-                    // 获取武器来源ID
-                    int sourceWeaponViewID = (int)data[4];
-                    PhotonView sourceView = PhotonView.Find(sourceWeaponViewID);
-                    if (sourceView != null)
+                    // 解析速度数据（前3个元素总是速度）
+                    Vector3 velocity = new Vector3((float)data[0], (float)data[1], (float)data[2]);
+                    
+                    // 检查数据格式：简单格式 vs ProjectileSettings格式
+                    if (data.Length == 5)
                     {
-                        _sourceWeapon = sourceView.GetComponent<WeaponBase>();
-                        _sourcePlayer = sourceView.transform.root.gameObject;
+                        // 简单格式：velocity.x, velocity.y, velocity.z, damage, sourceWeaponID
+                        _damage = (float)data[3];
+                        
+                        if (data.Length >= 5)
+                        {
+                            // 获取武器来源ID
+                            int sourceWeaponViewID = (int)data[4];
+                            PhotonView sourceView = PhotonView.Find(sourceWeaponViewID);
+                            if (sourceView != null)
+                            {
+                                _sourceWeapon = sourceView.GetComponent<WeaponBase>();
+                                _sourcePlayer = sourceView.transform.root.gameObject;
+                            }
+                        }
+                        
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物] 简单格式网络配置完成，速度: {velocity}, 伤害: {_damage}");
+                    }
+                    else if (data.Length >= 19)
+                    {
+                        // ProjectileSettings格式：velocity.x, velocity.y, velocity.z, damage, maxRange, lifetime, etc.
+                        int index = 3;
+                        _damage = (float)data[index++];           // data[3] - Damage
+                        _maxRange = (float)data[index++];         // data[4] - MaxRange  
+                        _lifetime = (float)data[index++];         // data[5] - Lifetime
+                        
+                        // 物理设置
+                        float mass = (float)data[index++];        // data[6] - Mass
+                        float drag = (float)data[index++];        // data[7] - Drag
+                        bool useGravity = (bool)data[index++];    // data[8] - UseGravity
+                        float gravityScale = (float)data[index++]; // data[9] - GravityScale
+                        
+                        // 弹跳设置
+                        _maxBounces = (int)data[index++];         // data[10] - MaxBounceCount
+                        _bounceEnergyLoss = (float)data[index++]; // data[11] - BounceEnergyLoss
+                        
+                        // 引力设置
+                        float gravityForce = (float)data[index++]; // data[12] - GravityForce
+                        float gravityRadius = (float)data[index++]; // data[13] - GravityRadius
+                        
+                        // 爆炸设置
+                        float explosionRadius = (float)data[index++]; // data[14] - ExplosionRadius
+                        float explosionDamage = (float)data[index++]; // data[15] - ExplosionDamage
+                        
+                        // 穿透设置
+                        _maxPenetrations = (int)data[index++];    // data[16] - PenetrationCount
+                        float penetrationReduction = (float)data[index++]; // data[17] - PenetrationDamageReduction
+                        
+                        // 武器来源ID
+                        if (index < data.Length)
+                        {
+                            int sourceWeaponViewID = (int)data[index++]; // data[18] - SourceWeaponID
+                            if (sourceWeaponViewID != -1)
+                            {
+                                PhotonView sourceView = PhotonView.Find(sourceWeaponViewID);
+                                if (sourceView != null)
+                                {
+                                    _sourceWeapon = sourceView.GetComponent<WeaponBase>();
+                                    _sourcePlayer = sourceView.transform.root.gameObject;
+                                }
+                            }
+                        }
+                        
+                        // 应用物理设置
+                        if (_rigidbody != null)
+                        {
+                            _rigidbody.mass = mass;
+                            _rigidbody.drag = drag;
+                            _rigidbody.useGravity = useGravity;
+                        }
+                        
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物] ProjectileSettings网络配置完成，速度: {velocity}, 伤害: {_damage}, 生命周期: {_lifetime}");
+                    }
+                    else
+                    {
+                        // 只有基础数据，使用默认值
+                        _damage = (float)data[3];
+                        
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物] 基础网络配置完成，速度: {velocity}, 伤害: {_damage}");
+                    }
+                    
+                    // 应用速度（所有格式都需要）
+                    if (_rigidbody != null)
+                    {
+                        _rigidbody.velocity = velocity;
+                    }
+                    
+                    _initialVelocity = velocity;
+                    _speed = velocity.magnitude;
+                }
+                else
+                {
+                    Debug.LogWarning($"[标准投射物] 网络数据长度不足: {data.Length}，需要至少4个元素");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[标准投射物] 网络数据配置异常: {e.Message}");
+                Debug.LogError($"[标准投射物] 数据长度: {data?.Length}, 异常堆栈: {e.StackTrace}");
+                
+                // 异常时使用默认配置
+                if (data != null && data.Length >= 4)
+                {
+                    try
+                    {
+                        Vector3 velocity = new Vector3((float)data[0], (float)data[1], (float)data[2]);
+                        _damage = (float)data[3];
+                        
+                        if (_rigidbody != null)
+                        {
+                            _rigidbody.velocity = velocity;
+                        }
+                        
+                        _initialVelocity = velocity;
+                        _speed = velocity.magnitude;
+                        
+                        Debug.LogWarning("[标准投射物] 使用最小配置作为回退方案");
+                    }
+                    catch (System.Exception fallbackException)
+                    {
+                        Debug.LogError($"[标准投射物] 回退配置也失败: {fallbackException.Message}");
                     }
                 }
-                
-                // 应用速度
-                if (_rigidbody != null)
-                {
-                    _rigidbody.velocity = velocity;
-                }
-                
-                _initialVelocity = velocity;
-                _speed = velocity.magnitude;
-                
-                if (_showDebugInfo)
-                    Debug.Log($"[标准投射物] 网络配置完成，速度: {velocity}, 伤害: {_damage}");
             }
         }
         
@@ -120,7 +241,7 @@ namespace DWHITE.Weapons
             // 播放撞击效果
             PlayImpactEffect(hitPoint, hitNormal);
             PlayImpactSound();
-            
+
             // 处理爆炸
             if (_explodeOnImpact && !_hasExploded)
             {
@@ -132,8 +253,9 @@ namespace DWHITE.Weapons
                 {
                     Explode();
                 }
-            }            // 触发命中事件（在ProjectileBase中处理）
-            // OnProjectileHit?.Invoke(this, hit); // 由基类处理事件触发
+            }
+            // 触发命中事件（在ProjectileBase中处理）
+            TriggerProjectileHit(hit); // 由基类处理事件触发
             
             // 标记已命中
             _hasHit = true;
@@ -193,57 +315,39 @@ namespace DWHITE.Weapons
             }
             
             return true;
-        }
-        
-        /// <summary>
-        /// 造成伤害
+        }        /// <summary>
+        /// 造成伤害 - 使用适配器统一处理接口差异
         /// </summary>
         private bool DealDamage(Collider target, Vector3 hitPoint)
         {
-            // 查找伤害接收器组件
-            IDamageable damageable = target.GetComponent<IDamageable>();
-            if (damageable == null)
+            // 使用适配器统一处理不同的IDamageable接口
+            bool damageApplied = DWHITE.Weapons.DamageableAdapter.ApplyDamage(
+                target, 
+                _damage, 
+                hitPoint, 
+                Velocity.normalized, 
+                _sourcePlayer, 
+                _sourceWeapon, 
+                this
+            );
+            
+            if (damageApplied && _showDebugInfo)
             {
-                damageable = target.GetComponentInParent<IDamageable>();
+                Debug.Log($"[标准投射物] 对 {target.name} 造成 {_damage} 点伤害");
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.Log($"[标准投射物] {target.name} 不是可伤害目标或已死亡");
             }
             
-            if (damageable != null)
-            {
-                // 创建伤害信息
-                DamageInfo damageInfo = new DamageInfo
-                {
-                    damage = _damage,
-                    damageType = DamageType.Projectile,
-                    source = _sourcePlayer,
-                    weapon = _sourceWeapon,
-                    hitPoint = hitPoint,
-                    hitDirection = Velocity.normalized,
-                    projectile = this
-                };
-                
-                // 造成伤害
-                damageable.TakeDamage(damageInfo);
-                
-                if (_showDebugInfo)
-                    Debug.Log($"[标准投射物] 对 {target.name} 造成 {_damage} 点伤害");
-                
-                return true;
-            }
-            else
-            {
-                if (_showDebugInfo)
-                    Debug.Log($"[标准投射物] {target.name} 不是可伤害目标");
-            }
-            
-            return false;
+            return damageApplied;
         }
         
         #endregion
         
         #region 爆炸系统
-        
-        /// <summary>
-        /// 爆炸
+          /// <summary>
+        /// 爆炸处理 - 逐步迁移到DamageSystem
         /// </summary>
         private void Explode()
         {
@@ -261,7 +365,13 @@ namespace DWHITE.Weapons
                 return;
             }
             
-            // 找到爆炸范围内的所有目标
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物] 爆炸: 半径={explosionRadius}, 伤害={explosionDamage}");
+            
+            // TODO: 当DamageSystem完全集成后，使用这个方法：
+            DamageSystem.ApplyExplosionDamage(transform.position, explosionRadius, explosionDamage, _sourcePlayer, _damageableLayers, _sourceWeapon);
+            
+            // 当前使用本地爆炸处理逻辑
             Collider[] targets = Physics.OverlapSphere(transform.position, explosionRadius, _damageableLayers);
             
             foreach (Collider target in targets)
@@ -273,27 +383,47 @@ namespace DWHITE.Weapons
                 float damageMultiplier = 1f - (distance / explosionRadius);
                 damageMultiplier = Mathf.Clamp01(damageMultiplier);
                 
-                // 造成爆炸伤害
-                IDamageable damageable = target.GetComponent<IDamageable>();
-                if (damageable == null)
+                // 尝试Core接口优先
+                DWHITE.IDamageable coreDamageable = target.GetComponent<DWHITE.IDamageable>();
+                if (coreDamageable == null)
                 {
-                    damageable = target.GetComponentInParent<IDamageable>();
+                    coreDamageable = target.GetComponentInParent<DWHITE.IDamageable>();
                 }
                 
-                if (damageable != null)
+                if (coreDamageable != null)
                 {
-                    DamageInfo explosionDamageInfo = new DamageInfo
-                    {
-                        damage = explosionDamage * damageMultiplier,
-                        damageType = DamageType.Explosion,
-                        source = _sourcePlayer,
-                        weapon = _sourceWeapon,
-                        hitPoint = target.transform.position,
-                        hitDirection = (target.transform.position - transform.position).normalized,
-                        projectile = this
-                    };
+                    float finalDamage = explosionDamage * damageMultiplier;
+                    Vector3 explosionDirection = (target.transform.position - transform.position).normalized;
                     
-                    damageable.TakeDamage(explosionDamageInfo);
+                    coreDamageable.TakeDamage(finalDamage, target.transform.position, explosionDirection);
+                    
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物] 爆炸伤害对 {target.name}: {finalDamage:F1} (距离: {distance:F1})");
+                }
+                else
+                {
+                    // 回退到本地接口
+                    IDamageable localDamageable = target.GetComponent<IDamageable>();
+                    if (localDamageable == null)
+                    {
+                        localDamageable = target.GetComponentInParent<IDamageable>();
+                    }
+                      if (localDamageable != null)
+                    {
+                        // 使用适配器处理爆炸伤害
+                        bool damageApplied = DWHITE.Weapons.DamageableAdapter.ApplyDamage(
+                            target,
+                            explosionDamage * damageMultiplier,
+                            target.transform.position,
+                            (target.transform.position - transform.position).normalized,
+                            _sourcePlayer,
+                            _sourceWeapon,
+                            this
+                        );
+                        
+                        if (damageApplied && _showDebugInfo)
+                            Debug.Log($"[标准投射物] 本地爆炸伤害对 {target.name}: {explosionDamage * damageMultiplier:F1}");
+                    }
                 }
             }
             
@@ -336,48 +466,7 @@ namespace DWHITE.Weapons
                 }
             }
         }
-#endif
-        
+#endif        
         #endregion
     }
-    
-    #region 伤害系统接口
-    
-    /// <summary>
-    /// 伤害类型枚举
-    /// </summary>
-    public enum DamageType
-    {
-        Projectile,    // 投射物伤害
-        Explosion,     // 爆炸伤害
-        Hitscan,       // 即时命中伤害
-        Environmental  // 环境伤害
-    }
-    
-    /// <summary>
-    /// 伤害信息结构
-    /// </summary>
-    [System.Serializable]
-    public struct DamageInfo
-    {
-        public float damage;
-        public DamageType damageType;
-        public GameObject source;
-        public WeaponBase weapon;
-        public Vector3 hitPoint;
-        public Vector3 hitDirection;
-        public ProjectileBase projectile;
-    }
-    
-    /// <summary>
-    /// 可伤害对象接口
-    /// </summary>
-    public interface IDamageable
-    {
-        void TakeDamage(DamageInfo damageInfo);
-        float GetHealth();
-        bool IsAlive();
-    }
-    
-    #endregion
 }

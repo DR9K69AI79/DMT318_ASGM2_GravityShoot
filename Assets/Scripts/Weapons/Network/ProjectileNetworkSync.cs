@@ -67,6 +67,13 @@ namespace DWHITE.Weapons.Network
             _networkRotation = transform.rotation;
             _networkVelocity = _rigidbody ? _rigidbody.velocity : Vector3.zero;
             
+            // 如果不是所有者，设置为运动学模式以避免物理冲突
+            if (!photonView.IsMine && _rigidbody != null)
+            {
+                _rigidbody.isKinematic = true;
+                LogNetwork("非所有者投射物设置为运动学模式");
+            }
+            
             LogNetwork($"投射物网络同步已初始化 - 所有者: {photonView.Owner?.NickName}");
         }
         
@@ -100,6 +107,11 @@ namespace DWHITE.Weapons.Network
                 DestroyProjectile();
                 return;
             }
+
+            if (_showDebugInfo)
+            {
+                LogNetwork($"应用网络状态 - 网络位置: {_networkPosition}, 当前位置: {transform.position}");
+            }
             
             // 应用位置同步
             if (_syncPosition)
@@ -119,9 +131,8 @@ namespace DWHITE.Weapons.Network
                     transform.rotation = _networkRotation;
                 }
             }
-            
-            // 应用速度同步
-            if (_syncVelocity && _rigidbody != null)
+              // 应用速度同步（仅在非运动学模式下）
+            if (_syncVelocity && _rigidbody != null && !_rigidbody.isKinematic)
             {
                 float velocityDifference = Vector3.Distance(_rigidbody.velocity, _networkVelocity);
                 if (velocityDifference > _predictionTolerance)
@@ -129,9 +140,7 @@ namespace DWHITE.Weapons.Network
                     _rigidbody.velocity = Vector3.Lerp(_rigidbody.velocity, _networkVelocity, Time.deltaTime * _correctionSpeed);
                 }
             }
-        }
-        
-        private void ApplyPositionSync()
+        }        private void ApplyPositionSync()
         {
             float distance = Vector3.Distance(transform.position, _networkPosition);
             
@@ -398,6 +407,15 @@ namespace DWHITE.Weapons.Network
                 // 强制发送当前状态
                 _lastSendTime = 0f;
             }
+        }
+        
+        /// <summary>
+        /// 启用调试信息（用于诊断网络同步问题）
+        /// </summary>
+        public void EnableDebugInfo(bool enable = true)
+        {
+            _showDebugInfo = enable;
+            _showNetworkGizmos = enable;
         }
         
         #endregion

@@ -23,7 +23,7 @@ namespace DWHITE.Weapons
         /// <summary>
         /// 尝试射击事件（用于UI反馈等）
         /// </summary>
-        public static event Action<PlayerWeaponController, bool> OnFireAttempt; // success
+        public static event Action<PlayerWeaponController, bool> OnFireAttempt;
         
         #endregion
         
@@ -121,8 +121,7 @@ namespace DWHITE.Weapons
             // 验证配置
             ValidateConfiguration();
         }
-        
-        private void Start()
+          private void Start()
         {
             // 只有本地玩家需要处理输入
             if (_isLocalPlayer)
@@ -134,10 +133,18 @@ namespace DWHITE.Weapons
             InitializeWeapons();
             
             // 装备起始武器
-            if (_availableWeapons.Count > 0)
+            if (_availableWeapons.Count > 0) 
             {
-                int weaponIndex = Mathf.Clamp(_startingWeaponIndex, 0, _availableWeapons.Count - 1);
-                SwitchToWeapon(weaponIndex);
+                bool success = SwitchToWeapon(_startingWeaponIndex);
+                if (!success && _showDebugInfo)
+                {
+                    Debug.LogWarning($"[武器控制器] 无法装备起始武器索引 {_startingWeaponIndex}，尝试装备第一个武器");
+                    SwitchToWeapon(0);
+                }
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.LogWarning("[武器控制器] 没有可用武器，无法装备起始武器");
             }
         }
         
@@ -175,10 +182,11 @@ namespace DWHITE.Weapons
         /// <summary>
         /// 移除输入事件处理器
         /// </summary>
-        private void RemoveInputHandlers()        {
+        private void RemoveInputHandlers()
+        {
             // 清理输入订阅
         }
-        
+
         /// <summary>
         /// 更新射击输入处理
         /// </summary>
@@ -189,6 +197,7 @@ namespace DWHITE.Weapons
             // 通过PlayerInput主动获取射击输入状态
             bool firePressed = _playerInput.FirePressed;
             bool fireHeld = _playerInput.FireHeld;
+            bool shouldAttemptFire = false;
 
             // 处理单次射击
             if (firePressed)
@@ -198,7 +207,7 @@ namespace DWHITE.Weapons
                 _lastFireInputTime = Time.time;
                 _pendingFireInput = true;
                 
-                TryFire();
+                shouldAttemptFire = true;
                 
                 if (_showDebugInfo)
                     Debug.Log("[武器控制器] 射击输入按下");
@@ -213,23 +222,32 @@ namespace DWHITE.Weapons
                     Debug.Log("[武器控制器] 射击输入释放");
             }
             
-            // 处理自动射击
-            if (_autoFire && fireHeld && _currentWeapon != null && _currentWeapon.WeaponData.Automatic)
+            // 处理自动射击 - 只有在没有单次射击的情况下才处理
+            if (!shouldAttemptFire && _autoFire && fireHeld && _currentWeapon != null && _currentWeapon.WeaponData.Automatic)
             {
-                TryFire();
+                shouldAttemptFire = true;
             }
             
-            // 处理输入缓冲
-            if (_pendingFireInput && Time.time - _lastFireInputTime <= _fireInputBufferTime)
+            // 处理输入缓冲 - 只有在没有其他射击请求的情况下才处理
+            if (!shouldAttemptFire && _pendingFireInput && Time.time - _lastFireInputTime <= _fireInputBufferTime)
             {
-                if (TryFire())
+                shouldAttemptFire = true;
+            }
+            else if (_pendingFireInput && Time.time - _lastFireInputTime > _fireInputBufferTime)
+            {
+                _pendingFireInput = false;
+            }
+            
+            // 统一处理射击请求 - 确保每帧最多只调用一次TryFire
+            if (shouldAttemptFire)
+            {
+                bool fireSuccess = TryFire();
+                
+                // 如果射击成功，清除缓冲
+                if (fireSuccess && _pendingFireInput)
                 {
                     _pendingFireInput = false;
                 }
-            }
-            else if (_pendingFireInput)
-            {
-                _pendingFireInput = false;
             }
             
             // 重置单帧输入状态
@@ -335,39 +353,34 @@ namespace DWHITE.Weapons
             Vector3 origin = _currentWeapon != null ? _currentWeapon.GetMuzzlePosition() : transform.position;
             return new Ray(origin, _currentAimDirection);
         }
-        
+
         #endregion
-        
-        #region 射击系统
-          /// <summary>
+
+        #region 射击系统        
+        /// <summary>
         /// 尝试射击
         /// </summary>
         public bool TryFire()
         {
-            Debug.Log("[武器控制器] TryFire 方法开始执行");
-            Debug.Log($"[武器控制器] 当前武器存在: {_currentWeapon != null}");
-            
             if (_currentWeapon == null)
             {
-                Debug.Log("[武器控制器] 没有当前武器，射击失败");
+                if (_showDebugInfo)
+                    Debug.Log("[武器控制器] 没有当前武器，射击失败");
                 OnFireAttempt?.Invoke(this, false);
                 return false;
             }
-            
-            Debug.Log($"[武器控制器] 当前武器: {_currentWeapon.gameObject.name}");
-            Debug.Log($"[武器控制器] 武器类型: {_currentWeapon.GetType().Name}");
-            Debug.Log($"[武器控制器] 瞄准方向: {_currentAimDirection}");            
+
             bool success = _currentWeapon.TryFire(_currentAimDirection);
-            
-            Debug.Log($"[武器控制器] 武器TryFire结果: {success}");
-            
+
             // 网络同步现在由 PlayerStatusManager 处理
-            
+
             OnFireAttempt?.Invoke(this, success);
-            
+
             if (_showDebugInfo && success)
                 Debug.Log($"[武器控制器] 成功射击 {_currentWeapon.WeaponData.WeaponName}");
-            
+            else if (_showDebugInfo)
+                Debug.Log($"[武器控制器] 射击失败或无效 {_currentWeapon.WeaponData.WeaponName}");
+
             return success;
         }
         
@@ -386,8 +399,7 @@ namespace DWHITE.Weapons
         #endregion
         
         #region 武器管理
-        
-        /// <summary>
+          /// <summary>
         /// 初始化武器
         /// </summary>
         private void InitializeWeapons()
@@ -408,29 +420,52 @@ namespace DWHITE.Weapons
                 }
             }
             
+            // 验证起始武器索引 - 在武器列表初始化后进行
+            if (_startingWeaponIndex < 0 || _startingWeaponIndex >= _availableWeapons.Count)
+            {
+                _startingWeaponIndex = 0;
+                if (_showDebugInfo && _availableWeapons.Count > 0)
+                    Debug.LogWarning($"[武器控制器] 起始武器索引无效，重置为 0");
+            }
+            
             if (_showDebugInfo)
-                Debug.Log($"[武器控制器] 初始化了 {_availableWeapons.Count} 个武器");
+                Debug.Log($"[武器控制器] 初始化了 {_availableWeapons.Count} 个武器，起始武器索引: {_startingWeaponIndex}");
         }
-        
-        /// <summary>
+          /// <summary>
         /// 切换到指定武器
         /// </summary>
         public bool SwitchToWeapon(int weaponIndex)
         {
+            // 边界检查
             if (weaponIndex < 0 || weaponIndex >= _availableWeapons.Count)
+            {
+                if (_showDebugInfo)
+                    Debug.LogWarning($"[武器控制器] 武器索引 {weaponIndex} 超出范围 (0-{_availableWeapons.Count - 1})");
                 return false;
+            }
             
-            if (weaponIndex == _currentWeaponIndex)
+            // 检查是否已经是当前武器
+            if (weaponIndex == _currentWeaponIndex) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[武器控制器] 已经装备武器索引 {weaponIndex}");
                 return true;
+            }
             
             WeaponBase newWeapon = _availableWeapons[weaponIndex];
             if (newWeapon == null)
+            {
+                if (_showDebugInfo)
+                    Debug.LogError($"[武器控制器] 武器索引 {weaponIndex} 对应的武器为空");
                 return false;
+            }
             
             // 卸载当前武器
             if (_currentWeapon != null)
             {
                 _currentWeapon.Unequip();
+                if (_showDebugInfo)
+                    Debug.Log($"[武器控制器] 卸载武器: {_currentWeapon.WeaponData?.WeaponName}");
             }
             
             // 装备新武器
@@ -444,20 +479,27 @@ namespace DWHITE.Weapons
             // 网络同步现在由 PlayerStatusManager 处理
             
             if (_showDebugInfo)
-                Debug.Log($"[武器控制器] 切换到武器: {_currentWeapon.WeaponData.WeaponName}");
+                Debug.Log($"[武器控制器] 切换到武器: {_currentWeapon.WeaponData?.WeaponName} (索引: {weaponIndex})");
             
             return true;
         }
-        
-        /// <summary>
+          /// <summary>
         /// 切换到下一个武器
         /// </summary>
         public bool SwitchToNextWeapon(int direction = 1)
         {
             if (_availableWeapons.Count <= 1) return false;
             
-            int nextIndex = (_currentWeaponIndex + direction) % _availableWeapons.Count;
-            if (nextIndex < 0) nextIndex = _availableWeapons.Count - 1;
+            // 确保方向值有效
+            direction = direction > 0 ? 1 : -1;
+            
+            int nextIndex = _currentWeaponIndex + direction;
+            
+            // 处理边界情况
+            if (nextIndex >= _availableWeapons.Count)
+                nextIndex = 0;
+            else if (nextIndex < 0)
+                nextIndex = _availableWeapons.Count - 1;
             
             return SwitchToWeapon(nextIndex);
         }
@@ -476,24 +518,42 @@ namespace DWHITE.Weapons
             if (_showDebugInfo)
                 Debug.Log($"[武器控制器] 添加武器: {weapon.WeaponData?.WeaponName}");
         }
-        
-        /// <summary>
+          /// <summary>
         /// 移除武器
         /// </summary>
         public bool RemoveWeapon(WeaponBase weapon)
         {
-            if (weapon == null || !_availableWeapons.Contains(weapon)) return false;
+            if (weapon == null || !_availableWeapons.Contains(weapon)) 
+            {
+                if (_showDebugInfo)
+                    Debug.LogWarning("[武器控制器] 尝试移除无效或不存在的武器");
+                return false;
+            }
+            
+            int removingIndex = _availableWeapons.IndexOf(weapon);
             
             // 如果是当前武器，先切换
             if (_currentWeapon == weapon)
             {
                 if (_availableWeapons.Count > 1)
                 {
-                    int nextIndex = (_currentWeaponIndex + 1) % _availableWeapons.Count;
-                    if (_availableWeapons[nextIndex] == weapon)
-                        nextIndex = (nextIndex + 1) % _availableWeapons.Count;
+                    // 优先切换到下一个武器，如果是最后一个则切换到前一个
+                    int nextIndex = removingIndex + 1;
+                    if (nextIndex >= _availableWeapons.Count)
+                        nextIndex = removingIndex - 1;
                     
-                    SwitchToWeapon(nextIndex);
+                    // 确保不会切换到即将移除的武器
+                    if (nextIndex >= 0 && nextIndex < _availableWeapons.Count && nextIndex != removingIndex)
+                    {
+                        SwitchToWeapon(nextIndex);
+                    }
+                    else
+                    {
+                        // 如果找不到合适的武器，卸载当前武器
+                        weapon.Unequip();
+                        _currentWeapon = null;
+                        _currentWeaponIndex = -1;
+                    }
                 }
                 else
                 {
@@ -505,39 +565,18 @@ namespace DWHITE.Weapons
             
             _availableWeapons.Remove(weapon);
             
+            // 更新当前武器索引（如果当前武器在被移除武器之后）
+            if (_currentWeapon != null && removingIndex < _currentWeaponIndex)
+            {
+                _currentWeaponIndex--;
+            }
+            
             if (_showDebugInfo)
-                Debug.Log($"[武器控制器] 移除武器: {weapon.WeaponData?.WeaponName}");
+                Debug.Log($"[武器控制器] 移除武器: {weapon.WeaponData?.WeaponName}，当前武器索引: {_currentWeaponIndex}");
             
             return true;
         }
-        
-        #endregion
-          #region 网络同步 [已废弃 - 由PlayerStatusManager处理]
-        
-        /// <summary>
-        /// [已废弃] 远程射击同步 - 现在由PlayerStatusManager处理
-        /// </summary>
-        [System.Obsolete("网络同步功能已迁移到PlayerStatusManager")]
-        [PunRPC]
-        private void OnRemoteFire(float dirX, float dirY, float dirZ, double timestamp)
-        {
-            Debug.LogWarning("[PlayerWeaponController] OnRemoteFire已废弃，请使用PlayerStatusManager");
-            // 为了兼容性保留，但功能已移到PlayerStatusManager
-        }
-        
-        /// <summary>
-        /// [已废弃] 远程武器切换同步 - 现在由PlayerStatusManager处理
-        /// </summary>
-        [System.Obsolete("网络同步功能已迁移到PlayerStatusManager")]
-        [PunRPC]
-        private void OnRemoteWeaponSwitch(int weaponIndex)
-        {
-            Debug.LogWarning("[PlayerWeaponController] OnRemoteWeaponSwitch已废弃，请使用PlayerStatusManager");
-            // 为了兼容性，仍然执行切换，但警告用户
-            SwitchToWeapon(weaponIndex);
-        }
-        
-        #endregion
+          #endregion
         
         #region 公共API
         
@@ -578,8 +617,7 @@ namespace DWHITE.Weapons
         #endregion
         
         #region 验证和调试
-        
-        /// <summary>
+          /// <summary>
         /// 验证配置
         /// </summary>
         private void ValidateConfiguration()
@@ -599,11 +637,7 @@ namespace DWHITE.Weapons
                 }
             }
             
-            // 验证起始武器索引
-            if (_startingWeaponIndex >= _availableWeapons.Count)
-            {
-                _startingWeaponIndex = 0;
-            }
+            // 起始武器索引验证移至武器初始化后
         }
         
 #if UNITY_EDITOR

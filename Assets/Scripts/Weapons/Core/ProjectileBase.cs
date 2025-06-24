@@ -30,42 +30,66 @@ namespace DWHITE.Weapons
         
         #endregion
         
-        #region 配置与状态
+        #region 事件触发方法
         
-        [Header("投射物配置")]
-        [SerializeField] protected float _damage = 20f;
-        [SerializeField] protected float _speed = 20f;
-        [SerializeField] protected float _lifetime = 10f;
-        [SerializeField] protected LayerMask _hitLayers = -1;
+        /// <summary>
+        /// 触发投射物命中事件
+        /// </summary>
+        protected virtual void TriggerProjectileHit(RaycastHit hit)
+        {
+            OnProjectileHit?.Invoke(this, hit);
+        }
         
-        [Header("物理设置")]
-        [SerializeField] protected bool _useCustomGravity = true;
-        [SerializeField] protected float _gravityScale = 1f;
-        [SerializeField] protected float _drag = 0f;
+        /// <summary>
+        /// 触发投射物销毁事件
+        /// </summary>
+        protected virtual void TriggerProjectileDestroyed()
+        {
+            OnProjectileDestroyed?.Invoke(this);
+        }
         
-        [Header("弹跳设置")]
-        [SerializeField] protected int _maxBounces = 0;
-        [SerializeField] protected float _bounceEnergyLoss = 0.1f;
-        [SerializeField] protected float _minBounceVelocity = 1f;
+        /// <summary>
+        /// 触发投射物弹跳事件
+        /// </summary>
+        protected virtual void TriggerProjectileBounce(Vector3 bouncePoint)
+        {
+            OnProjectileBounce?.Invoke(this, bouncePoint);
+        }
         
-        [Header("效果")]
-        [SerializeField] protected GameObject _impactEffectPrefab;
-        [SerializeField] protected GameObject _trailEffectPrefab;
-        [SerializeField] protected AudioClip _impactSound;
-        [SerializeField] protected AudioClip _bounceSound;
+        #endregion        
+        #region 运行时配置（通过Configure方法设置）
         
-        [Header("调试")]
+        // 基础参数 - 运行时设置
+        protected float _damage = 20f;
+        protected float _speed = 20f;
+        protected float _lifetime = 10f;
+        protected LayerMask _hitLayers = -1;
+        
+        // 物理参数 - 运行时设置
+        protected bool _useCustomGravity = false;
+        protected float _gravityScale = 1f;
+        protected float _drag = 0f;
+        
+        // 弹跳参数 - 运行时设置
+        protected int _maxBounces = 0;
+        protected float _bounceEnergyLoss = 0.1f;
+        protected float _minBounceVelocity = 1f;
+          // 效果预制体 - 运行时设置
+        protected GameObject _impactEffectPrefab;
+        protected AudioClip _impactSound;
+        protected AudioClip _bounceSound;
+        
+        [Header("调试选项")]
+        [Tooltip("显示调试信息")]
         [SerializeField] protected bool _showDebugInfo = false;
+        [Tooltip("显示轨迹预测线")]
         [SerializeField] protected bool _showTrajectory = false;
         
         #endregion
         
         #region 组件引用
-        
-        protected Rigidbody _rigidbody;
+          protected Rigidbody _rigidbody;
         protected Collider _collider;
-        protected TrailRenderer _trailRenderer;
-        protected GameObject _trailEffect;
         
         #endregion
         
@@ -105,12 +129,10 @@ namespace DWHITE.Weapons
         {
             InitializeComponents();
         }
-        
-        protected virtual void Start()
+          protected virtual void Start()
         {
             _spawnTime = Time.time;
             SetupPhysics();
-            CreateTrailEffect();
         }
         
         protected virtual void Update()
@@ -142,13 +164,13 @@ namespace DWHITE.Weapons
         #region 初始化
         
         /// <summary>
+        /// 初始化组件引用        /// <summary>
         /// 初始化组件引用
         /// </summary>
         protected virtual void InitializeComponents()
         {
             _rigidbody = GetComponent<Rigidbody>();
             _collider = GetComponent<Collider>();
-            _trailRenderer = GetComponent<TrailRenderer>();
             
             if (_rigidbody == null)
             {
@@ -164,25 +186,16 @@ namespace DWHITE.Weapons
             if (_rigidbody == null) return;
             
             _rigidbody.drag = _drag;
-            _gravityDirection = CustomGravity.GetGravity(transform.position).normalized;
+            if (_useCustomGravity)
+            {
+                _gravityDirection = CustomGravity.GetGravity(transform.position).normalized;
+            }
 
             // 设置初始速度
             if (_initialVelocity != Vector3.zero)
             {
                 _rigidbody.velocity = _initialVelocity;
-            }
-        }
-        
-        /// <summary>
-        /// 创建拖尾效果
-        /// </summary>
-        protected virtual void CreateTrailEffect()
-        {
-            if (_trailEffectPrefab != null)
-            {
-                _trailEffect = Instantiate(_trailEffectPrefab, transform);
-            }
-        }
+            }        }
         
         #endregion
         
@@ -355,9 +368,8 @@ namespace DWHITE.Weapons
             
             // 播放弹跳音效
             PlayBounceSound();
-            
-            // 触发弹跳事件
-            OnProjectileBounce?.Invoke(this, contact.point);
+              // 触发弹跳事件
+            TriggerProjectileBounce(contact.point);
             
             // 子类弹跳逻辑
             OnBounce(collision, reflectedVelocity);
@@ -436,7 +448,7 @@ namespace DWHITE.Weapons
             _isDestroyed = true;
             
             // 触发销毁事件
-            OnProjectileDestroyed?.Invoke(this);
+            TriggerProjectileDestroyed();
             
             // 子类销毁逻辑
             OnDestroy();
@@ -522,8 +534,7 @@ namespace DWHITE.Weapons
           #endregion
         
         #region 网络支持方法
-        
-        /// <summary>
+          /// <summary>
         /// 网络销毁回调
         /// </summary>
         public virtual void NetworkDestroy()
@@ -533,7 +544,7 @@ namespace DWHITE.Weapons
             _isDestroyed = true;
             
             // 触发销毁事件
-            OnProjectileDestroyed?.Invoke(this);
+            TriggerProjectileDestroyed();
             
             // 子类销毁逻辑
             OnDestroy();
@@ -586,5 +597,132 @@ namespace DWHITE.Weapons
 #endif
         
         #endregion
+
+        /// <summary>
+        /// 配置投射物参数（用于工厂模式）
+        /// </summary>
+        /// <param name="velocity">初始速度向量</param>
+        /// <param name="damage">伤害值</param>
+        /// <param name="sourceWeapon">来源武器</param>
+        /// <param name="sourcePlayer">来源玩家</param>
+        public virtual void Configure(Vector3 velocity, float damage, WeaponBase sourceWeapon = null, GameObject sourcePlayer = null)
+        {
+            _damage = damage;
+            _sourceWeapon = sourceWeapon;
+            _sourcePlayer = sourcePlayer;
+            
+            // 设置速度
+            _initialVelocity = velocity;
+            _speed = velocity.magnitude;
+            
+            if (_rigidbody != null)
+            {
+                _rigidbody.velocity = velocity;
+            }
+            
+            // 设置旋转
+            if (velocity != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(velocity.normalized);
+            }
+            
+            OnConfigure(velocity, damage);
+            
+            if (_showDebugInfo)
+                Debug.Log($"[投射物] {gameObject.name} 配置完成，速度: {velocity}, 伤害: {damage}");
+        }
+        
+        /// <summary>
+        /// 使用ProjectileSettings配置投射物（新版本）
+        /// </summary>
+        /// <param name="settings">投射物设置</param>
+        /// <param name="velocity">初始速度</param>
+        /// <param name="direction">发射方向</param>
+        /// <param name="sourceWeapon">来源武器</param>
+        /// <param name="sourcePlayer">来源玩家</param>
+        public virtual void Configure(ProjectileSettings settings, Vector3 velocity, Vector3 direction, WeaponBase sourceWeapon = null, GameObject sourcePlayer = null)
+        {
+            if (settings == null)
+            {
+                Debug.LogWarning("[ProjectileBase] ProjectileSettings为空，使用默认配置");
+                Configure(velocity, _damage, sourceWeapon, sourcePlayer);
+                return;
+            }
+            
+            // 应用ProjectileSettings
+            ApplyProjectileSettings(settings);
+            
+            // 设置基础参数
+            _sourceWeapon = sourceWeapon;
+            _sourcePlayer = sourcePlayer;
+            _initialVelocity = velocity;
+            
+            // 设置物理属性
+            if (_rigidbody != null)
+            {
+                _rigidbody.velocity = velocity;
+                _rigidbody.mass = settings.Mass;
+                _rigidbody.drag = settings.Drag;
+                
+                if (settings.UseGravity)
+                {
+                    // 自定义重力需要在Update中处理
+                    _useCustomGravity = true;
+                    _gravityScale = settings.GravityScale;
+                }
+            }
+            
+            // 设置旋转
+            if (direction != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(direction);
+            }
+            
+            // 调用子类配置
+            OnConfigureWithSettings(settings, velocity, direction);
+            
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射物] {gameObject.name} 使用ProjectileSettings配置完成");
+                Debug.Log($"[投射物] 速度: {velocity}, 伤害: {settings.Damage}, 生命周期: {settings.Lifetime}");
+                Debug.Log($"[投射物] 弹跳: {settings.MaxBounceCount}, 引力: {settings.GravityForce}, 爆炸: {settings.ExplosionRadius}");
+            }
+        }
+        
+        /// <summary>
+        /// 应用ProjectileSettings到投射物
+        /// </summary>
+        protected virtual void ApplyProjectileSettings(ProjectileSettings settings)
+        {
+            // 基础设置
+            _damage = settings.Damage;
+            _speed = settings.Speed;
+            _lifetime = settings.Lifetime;
+            
+            // 物理设置
+            _useCustomGravity = settings.UseGravity;
+            _gravityScale = settings.GravityScale;
+            _drag = settings.Drag;
+            
+            // 弹跳设置
+            _maxBounces = settings.MaxBounceCount;
+            _bounceEnergyLoss = settings.BounceEnergyLoss;
+            
+            // 其他设置会在子类中处理
+        }
+        
+        /// <summary>
+        /// 子类重写的ProjectileSettings配置逻辑
+        /// </summary>
+        protected virtual void OnConfigureWithSettings(ProjectileSettings settings, Vector3 velocity, Vector3 direction) 
+        { 
+            // 默认实现：调用传统的OnConfigure方法以保持兼容性
+            OnConfigure(velocity, settings.Damage);
+        }
+        
+        /// <summary>
+        /// 子类重写的传统配置逻辑
+        /// </summary>
+        protected virtual void OnConfigure(Vector3 velocity, float damage) { }
     }
 }

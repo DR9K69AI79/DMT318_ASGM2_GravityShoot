@@ -214,8 +214,8 @@ namespace DWHITE
 
             try
             {
-                // 在指定的武器动画层播放动画
-                _animator.Play(animationName, _weaponAnimationLayer);
+                // 在指定的武器动画层播放动画，使用默认的动画过渡
+                _animator.CrossFade(animationName, 0.1f, _weaponAnimationLayer);
 
                 if (_showDebugInfo)
                     Debug.Log($"[动画控制器] 播放武器动画: {animationName} (Layer: {_weaponAnimationLayer})");

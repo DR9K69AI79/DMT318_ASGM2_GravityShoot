@@ -112,6 +112,290 @@ namespace DWHITE.Weapons.Network
         
         #endregion
         
+        #region 投射物工厂方法
+        
+        /// <summary>
+        /// 生成投射物（工厂方法）
+        /// </summary>
+        /// <param name="prefab">投射物预制体</param>
+        /// <param name="position">生成位置</param>
+        /// <param name="direction">发射方向</param>
+        /// <param name="velocity">初始速度</param>
+        /// <param name="damage">伤害值</param>
+        /// <param name="sourceWeapon">来源武器</param>
+        /// <param name="sourcePlayer">来源玩家</param>
+        /// <param name="useNetworking">是否使用网络同步</param>
+        /// <param name="customData">自定义数据</param>
+        /// <returns>生成的投射物GameObject</returns>
+        public GameObject SpawnProjectile(
+            GameObject prefab, 
+            Vector3 position, 
+            Vector3 direction, 
+            Vector3 velocity,
+            float damage,
+            WeaponBase sourceWeapon = null,
+            GameObject sourcePlayer = null,
+            bool useNetworking = true,
+            object[] customData = null)
+        {
+            if (prefab == null)
+            {
+                Debug.LogError("[ProjectileManager] 投射物预制体为空");
+                return null;
+            }
+            
+            GameObject projectileObj = null;
+            
+            if (useNetworking && PhotonNetwork.IsConnected && photonView.IsMine)
+            {
+                // 网络同步投射物
+                object[] initData = new object[] 
+                { 
+                    velocity.x, velocity.y, velocity.z,
+                    damage,
+                    sourceWeapon?.photonView?.ViewID ?? -1 // 武器来源ID
+                };
+                
+                // 如果有自定义数据，合并到初始化数据中
+                if (customData != null && customData.Length > 0)
+                {
+                    object[] combinedData = new object[initData.Length + customData.Length];
+                    initData.CopyTo(combinedData, 0);
+                    customData.CopyTo(combinedData, initData.Length);
+                    initData = combinedData;
+                }
+                
+                projectileObj = PhotonNetwork.Instantiate(
+                    prefab.name, 
+                    position, 
+                    Quaternion.LookRotation(direction),
+                    0,
+                    initData
+                );
+                
+                if (_showDebugInfo)
+                {
+                    LogActivity($"网络投射物创建成功: {projectileObj.name}");
+                }
+            }
+            else
+            {
+                // 本地投射物
+                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));
+                
+                // 手动配置投射物参数
+                ProjectileBase projectileBase = projectileObj.GetComponent<ProjectileBase>();
+                if (projectileBase != null)
+                {
+                    projectileBase.Configure(velocity, damage, sourceWeapon, sourcePlayer);
+                }
+                
+                if (_showDebugInfo)
+                {
+                    LogActivity($"本地投射物创建成功: {projectileObj.name}");
+                }
+            }
+            
+            return projectileObj;
+        }
+        
+        /// <summary>
+        /// 带特殊参数的投射物生成
+        /// </summary>
+        /// <typeparam name="T">投射物类型</typeparam>
+        public T SpawnProjectile<T>(
+            GameObject prefab,
+            Vector3 position,
+            Vector3 direction,
+            Vector3 velocity,
+            float damage,
+            WeaponBase sourceWeapon = null,
+            GameObject sourcePlayer = null,
+            bool useNetworking = true,
+            System.Action<T> configureAction = null) where T : ProjectileBase
+        {
+            GameObject projectileObj = SpawnProjectile(
+                prefab, position, direction, velocity, damage, 
+                sourceWeapon, sourcePlayer, useNetworking);
+                
+            if (projectileObj != null)
+            {
+                T projectileComponent = projectileObj.GetComponent<T>();
+                if (projectileComponent != null)
+                {
+                    // 执行额外配置
+                    configureAction?.Invoke(projectileComponent);
+                    return projectileComponent;
+                }
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// 使用ProjectileSettings创建投射物（新版本）
+        /// </summary>
+        /// <param name="prefab">投射物预制体</param>
+        /// <param name="position">生成位置</param>
+        /// <param name="direction">发射方向</param>
+        /// <param name="velocity">初始速度</param>
+        /// <param name="projectileSettings">投射物配置</param>
+        /// <param name="sourceWeapon">来源武器</param>
+        /// <param name="sourcePlayer">来源玩家</param>
+        /// <param name="useNetworking">是否使用网络同步</param>
+        /// <returns>生成的投射物GameObject</returns>
+        public GameObject SpawnProjectile(
+            GameObject prefab, 
+            Vector3 position, 
+            Vector3 direction, 
+            Vector3 velocity,
+            ProjectileSettings projectileSettings,
+            WeaponBase sourceWeapon = null,
+            GameObject sourcePlayer = null,
+            bool useNetworking = true)
+        {
+            if (prefab == null)
+            {
+                Debug.LogError("[ProjectileManager] 投射物预制体为空");
+                return null;
+            }
+            
+            if (projectileSettings == null)
+            {
+                Debug.LogError("[ProjectileManager] ProjectileSettings为空，回退到默认参数");
+                return SpawnProjectile(prefab, position, direction, velocity, 20f, sourceWeapon, sourcePlayer, useNetworking);
+            }
+            
+            GameObject projectileObj = null;
+            
+            if (useNetworking && PhotonNetwork.IsConnected && photonView.IsMine)
+            {
+                // 网络同步投射物 - 传递完整的ProjectileSettings数据
+                object[] initData = CreateProjectileSettingsNetworkData(velocity, projectileSettings, sourceWeapon);
+                
+                projectileObj = PhotonNetwork.Instantiate(
+                    prefab.name, 
+                    position, 
+                    Quaternion.LookRotation(direction),
+                    0,
+                    initData
+                );
+                
+                if (_showDebugInfo)
+                {
+                    LogActivity($"网络投射物创建成功 (ProjectileSettings): {projectileObj.name}");
+                }
+            }
+            else
+            {
+                // 本地投射物
+                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));
+                
+                if (_showDebugInfo)
+                {
+                    LogActivity($"本地投射物创建成功 (ProjectileSettings): {projectileObj.name}");
+                }
+            }
+            
+            if (projectileObj != null)
+            {
+                // 配置投射物
+                ProjectileBase projectile = projectileObj.GetComponent<ProjectileBase>();
+                if (projectile != null)
+                {
+                    ConfigureProjectileWithSettings(projectile, velocity, direction, projectileSettings, sourceWeapon, sourcePlayer);
+                }
+                  // 注册到管理器
+                ProjectileBase projectileComponent = projectileObj.GetComponent<ProjectileBase>();
+                if (projectileComponent != null)
+                {
+                    RegisterProjectile(projectileComponent);
+                }
+            }
+            
+            return projectileObj;
+        }
+        
+        /// <summary>
+        /// 创建ProjectileSettings的网络数据
+        /// </summary>
+        private object[] CreateProjectileSettingsNetworkData(Vector3 velocity, ProjectileSettings settings, WeaponBase sourceWeapon)
+        {
+            // 基础数据
+            var basicData = new object[]
+            {
+                // 速度
+                velocity.x, velocity.y, velocity.z,
+                // 基础设置
+                settings.Damage, settings.MaxRange, settings.Lifetime,
+                // 物理设置
+                settings.Mass, settings.Drag, settings.UseGravity, settings.GravityScale,
+                // 弹跳设置
+                settings.MaxBounceCount, settings.BounceEnergyLoss,
+                // 引力设置
+                settings.GravityForce, settings.GravityRadius,
+                // 爆炸设置
+                settings.ExplosionRadius, settings.ExplosionDamage,
+                // 穿透设置
+                settings.PenetrationCount, settings.PenetrationDamageReduction,
+                // 来源武器ID
+                sourceWeapon?.photonView?.ViewID ?? -1
+            };
+            
+            return basicData;
+        }
+          /// <summary>
+        /// 使用ProjectileSettings配置投射物
+        /// </summary>
+        private void ConfigureProjectileWithSettings(
+            ProjectileBase projectile, 
+            Vector3 velocity, 
+            Vector3 direction, 
+            ProjectileSettings settings,
+            WeaponBase sourceWeapon, 
+            GameObject sourcePlayer)
+        {
+            try
+            {
+                // 直接调用ProjectileBase的Configure方法，避免反射
+                if (projectile != null && settings != null)
+                {
+                    if (_showDebugInfo)
+                        Debug.Log("[ProjectileManager] 直接调用ProjectileBase.Configure方法");
+                    
+                    projectile.Configure(settings, velocity, direction, sourceWeapon, sourcePlayer);
+                }
+                else
+                {
+                    // 回退到传统Launch方法
+                    if (_showDebugInfo)
+                        Debug.Log("[ProjectileManager] 投射物或设置为空，使用传统Launch方法");
+                    
+                    projectile.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[ProjectileManager] 配置投射物时发生异常: {e.Message}");
+                Debug.LogError($"[ProjectileManager] 异常堆栈: {e.StackTrace}");
+                
+                // 异常时回退到传统Launch方法
+                try
+                {
+                    projectile.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                    
+                    if (_showDebugInfo)
+                        Debug.LogWarning("[ProjectileManager] 配置异常，已回退到传统Launch方法");
+                }
+                catch (System.Exception fallbackException)
+                {
+                    Debug.LogError($"[ProjectileManager] 回退方法也失败: {fallbackException.Message}");
+                }
+            }
+        }
+        
+        #endregion
+        
         #region 投射物注册管理
         
         /// <summary>

@@ -15,35 +15,58 @@ MonoBehaviour:
   _weaponName: ShotGun
   _description: "\u6B66\u5668\u63CF\u8FF0"
   _weaponIcon: {fileID: 21300012, guid: 6674e8c43c63e4f4184cbd009379498d, type: 3}
-  _fireRate: 32
+  _fireRate: 1.2
   _automatic: 0
-  _projectileSpeed: 20
-  _projectilesPerShot: 16
-  _spreadAngle: 5
-  _magazineSize: 32
-  _reloadTime: 1.5
-  _infiniteAmmo: 1
-  _damage: 20
-  _maxRange: 100
+  _projectilesPerShot: 8
+  _spreadAngle: 15
+  _accuracy: 0.6
+  _magazineSize: 6
+  _reloadTime: 4
+  _infiniteAmmo: 0
+  _projectileSettings:
+    _speed: 20
+    _damage: 25
+    _maxRange: 200
+    _lifetime: 5
+    _mass: 0.5
+    _drag: 0.1
+    _useGravity: 0
+    _gravityScale: 1
+    _maxBounceCount: 0
+    _bounceEnergyLoss: 0.1
+    _bounceLayerMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    _gravityForce: 0
+    _gravityRadius: 5
+    _affectOtherProjectiles: 0
+    _explosionRadius: 0
+    _explosionDamage: 0
+    _friendlyFire: 0
+    _explosionLayerMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    _penetrationCount: 0
+    _penetrationDamageReduction: 0.2
+    _impactEffectPrefab: {fileID: 0}
+    _explosionEffectPrefab: {fileID: 0}
+    _launchSound: {fileID: 0}
+    _impactSound: {fileID: 0}
+    _explosionSound: {fileID: 0}
+    _bounceSound: {fileID: 0}
+    _syncMovement: 1
+    _syncInterval: 0.1
+    _enablePrediction: 1
+  _useProjectileSettings: 1
   _canHeadshot: 1
   _headshotMultiplier: 2
-  _maxBounceCount: 0
-  _bounceEnergyLoss: 0.1
-  _gravityForce: 0
-  _gravityRadius: 5
-  _explosionRadius: 0
-  _explosionDamage: 0
   _fireSound: {fileID: 8300000, guid: 0addcc409a57b4a43b86a3d2310ac5b4, type: 3}
   _reloadSound: {fileID: 8300000, guid: c565065df3907944b8b58f0d27066ba8, type: 3}
   _emptySound: {fileID: 8300000, guid: 0c187ee2790c74c4e9985aa1ee1a12d5, type: 3}
   _muzzleFlashPrefab: {fileID: 5752635059257427460, guid: 75dd1dcde49f79447899adbf669f7244,
     type: 3}
-  _impactEffectPrefab: {fileID: 719657563245746768, guid: 0e16f1cdd6f7c7b449e5feb2ac6c130f,
-    type: 3}
-  _trailEffectPrefab: {fileID: 1697291515947970758, guid: c983806bad792ad46befd059b0ac568b,
-    type: 3}
-  _recoilPattern: {x: 1, y: 5}
-  _recoilRecoveryTime: 0.5
+  _recoilPattern: {x: 2, y: 6}
+  _recoilRecoveryTime: 1.2
   _fireAnimationName: Fire
   _reloadAnimationName: Reload
   _equipAnimationName: Equip

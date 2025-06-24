@@ -8,53 +8,24 @@ namespace DWHITE.Weapons
     /// 具有强化弹跳能力的投射物
     /// </summary>
     public class BouncyProjectile : StandardProjectile
-    {
-        [Header("弹跳特效")]
+    {        [Header("弹跳特效")]
         [SerializeField] private float _bounceSpeedBoost = 1.1f; // 每次弹跳的速度增益
         [SerializeField] private float _maxBounceSpeed = 50f; // 最大弹跳速度
-        [SerializeField] private Color _trailColor = Color.cyan;
         [SerializeField] private AnimationCurve _bounceIntensityCurve = AnimationCurve.Linear(0, 1, 1, 0.5f);
         
         [Header("弹跳音效")]
         [SerializeField] private AudioClip[] _bounceVariations;
         [SerializeField] private float _pitchVariation = 0.2f;
-        
-        [Header("弹跳视觉")]
+          [Header("弹跳视觉")]
         [SerializeField] private GameObject _bounceEffectPrefab;
-        [SerializeField] private ParticleSystem _trailParticles;
         
-        private TrailRenderer _bouncyTrail;
         private int _totalBounces = 0;
-        
-        protected override void Start()
+          protected override void Start()
         {
             base.Start();
             
-            // 设置轨迹效果
-            _bouncyTrail = GetComponent<TrailRenderer>();
-            SetupTrailEffect();
-            
             if (_showDebugInfo)
-                Debug.Log("[弹跳投射物] 弹跳子弹已发射，准备弹跳！");
-        }
-        
-        /// <summary>
-        /// 设置轨迹效果
-        /// </summary>
-        private void SetupTrailEffect()
-        {
-            if (_bouncyTrail != null)
-            {
-                _bouncyTrail.startColor = _trailColor;
-                _bouncyTrail.endColor = new Color(_trailColor.r, _trailColor.g, _trailColor.b, 0f);
-            }
-            
-            if (_trailParticles != null)
-            {
-                var main = _trailParticles.main;
-                main.startColor = _trailColor;
-            }
-        }
+                Debug.Log("[弹跳投射物] 弹跳子弹已发射，准备弹跳！");        }
         
         protected override void OnBounce(Collision collision, Vector3 newVelocity)
         {
@@ -78,13 +49,9 @@ namespace DWHITE.Weapons
                 
                 _rigidbody.velocity = boostedVelocity;
             }
-            
-            // 播放弹跳效果
+              // 播放弹跳效果
             PlayBounceEffect(collision.contacts[0].point, collision.contacts[0].normal);
             PlayRandomBounceSound();
-            
-            // 更新轨迹颜色（随弹跳次数变化）
-            UpdateTrailColor();
             
             if (_showDebugInfo)
                 Debug.Log($"[弹跳投射物] 第 {_totalBounces} 次弹跳，强度: {bounceIntensity:F2}，速度: {_rigidbody.velocity.magnitude:F2}");
@@ -137,32 +104,7 @@ namespace DWHITE.Weapons
                 
                 // 音频播放完毕后销毁
                 Destroy(tempAudioObj, randomClip.length + 0.1f);
-            }
-        }
-        
-        /// <summary>
-        /// 更新轨迹颜色
-        /// </summary>
-        private void UpdateTrailColor()
-        {
-            if (_bouncyTrail == null) return;
-            
-            // 根据弹跳次数改变颜色
-            float colorShift = (float)_totalBounces / _maxBounces;
-            Color currentColor = Color.Lerp(_trailColor, Color.red, colorShift);
-            
-            _bouncyTrail.startColor = currentColor;
-            _bouncyTrail.endColor = new Color(currentColor.r, currentColor.g, currentColor.b, 0f);
-        }
-        
-        /// <summary>
-        /// 设置轨迹颜色
-        /// </summary>
-        public void SetTrailColor(Color color)
-        {
-            _trailColor = color;
-            SetupTrailEffect();
-        }
+            }        }
         
         /// <summary>
         /// 设置弹跳参数

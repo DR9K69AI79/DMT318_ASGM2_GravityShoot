@@ -1,8 +1,10 @@
 using UnityEngine;
 using Photon.Pun;
+using DWHITE.Weapons.Network;
 
 namespace DWHITE.Weapons
-{    /// <summary>
+{
+    /// <summary>
     /// 投射型武器实现
     /// 发射物理投射物的武器基类
     /// </summary>
@@ -39,86 +41,109 @@ namespace DWHITE.Weapons
             base.Awake();
             _playerMotor = GetComponentInParent<PlayerMotor>();
         }
-        
+
         #endregion
-        
+
         #region 射击实现
-          /// <summary>
-        /// 执行射击
+        
+        /// <summary>
+        /// 具体的开火实现
         /// </summary>
-        protected override void Fire(Vector3 direction)
+        /// <param name="direction">射击方向</param>
+        /// <returns>是否成功开火</returns>
+        protected override bool FireImplementation(Vector3 direction)
         {
-            Debug.Log("[投射武器] Fire方法开始执行");
-            Debug.Log($"[投射武器] 武器数据存在: {_weaponData != null}");
-            Debug.Log($"[投射武器] 投射物预制件存在: {_ProjectilePrefab != null}");
-            
+            if (_showDebugInfo)
+            {
+                Debug.Log("[投射武器] FireImplementation方法开始执行");
+                Debug.Log($"[投射武器] 武器数据存在: {_weaponData != null}");
+                Debug.Log($"[投射武器] 投射物预制件存在: {_ProjectilePrefab != null}");
+            }
+
             if (_weaponData == null || _ProjectilePrefab == null)
             {
                 Debug.LogError($"[投射武器] {gameObject.name} 缺少投射物预制件");
                 Debug.LogError($"[投射武器] 武器数据: {(_weaponData != null ? "存在" : "不存在")}");
                 Debug.LogError($"[投射武器] 投射物预制件: {(_ProjectilePrefab != null ? "存在" : "不存在")}");
-                return;
+                return false;
             }
-            
-            Debug.Log("[投射武器] 开始计算发射参数");
+
             // 计算发射参数
             Vector3 spawnPosition = CalculateSpawnPosition();
             Vector3 fireDirection = direction.normalized;
-            
-            Debug.Log($"[投射武器] 生成位置: {spawnPosition}");
-            Debug.Log($"[投射武器] 射击方向: {fireDirection}");
-            Debug.Log($"[投射武器] 是否散射武器: {_weaponData.IsSpreadWeapon}");
-            Debug.Log($"[投射武器] 使用散射: {_useSpread}");
-            
+
+            if (_showDebugInfo)
+            {
+                Debug.Log("[投射武器] 开始计算发射参数");
+                Debug.Log($"[投射武器] 生成位置: {spawnPosition}");
+                Debug.Log($"[投射武器] 射击方向: {fireDirection}");
+                Debug.Log($"[投射武器] 是否散射武器: {_weaponData.IsSpreadWeapon}");
+                Debug.Log($"[投射武器] 使用散射: {_useSpread}");
+            }
+
             // 处理散射
             if (_weaponData.IsSpreadWeapon || _useSpread)
             {
-                Debug.Log("[投射武器] 发射多个投射物（散射）");
+                if (_showDebugInfo)
+                    Debug.Log("[投射武器] 发射多个投射物（散射）");
                 FireMultipleProjectiles(spawnPosition, fireDirection);
             }
             else
             {
-                Debug.Log("[投射武器] 发射单个投射物");
+                if (_showDebugInfo)
+                    Debug.Log("[投射武器] 发射单个投射物");
                 FireSingleProjectile(spawnPosition, fireDirection);
             }
-            
-            Debug.Log("[投射武器] 播放枪口闪光");
+
             // 播放枪口闪光
             PlayMuzzleFlash();
             
-            Debug.Log("[投射武器] 完成射击处理");
-            // 完成射击处理
-            OnFireComplete(direction);
+            if (_showDebugInfo)
+                Debug.Log("[投射武器] 完成射击处理");
+            
+            // 返回成功
+            return true;
         }
-          /// <summary>
+        
+        /// <summary>
         /// 发射单个投射物
         /// </summary>
         protected virtual void FireSingleProjectile(Vector3 spawnPosition, Vector3 direction)
         {
-            Debug.Log("[投射武器] FireSingleProjectile开始执行");
+            if (_showDebugInfo)
+                Debug.Log("[投射武器] FireSingleProjectile开始执行");
             
             // 计算最终速度
             float finalSpeed = CalculateFinalSpeed();
             Vector3 finalVelocity = direction * finalSpeed;
             
-            Debug.Log($"[投射武器] 计算出的最终速度: {finalSpeed}");
-            Debug.Log($"[投射武器] 最终速度向量: {finalVelocity}");
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射武器] 计算出的最终速度: {finalSpeed}");
+                Debug.Log($"[投射武器] 最终速度向量: {finalVelocity}");
+            }
             
             // 应用玩家速度继承
             if (_inheritPlayerVelocity && _playerMotor != null)
             {
                 Vector3 playerVelocity = _playerMotor.Velocity * _inheritVelocityFactor;
                 finalVelocity += playerVelocity;
-                Debug.Log($"[投射武器] 玩家速度: {_playerMotor.Velocity}");
-                Debug.Log($"[投射武器] 继承速度: {playerVelocity}");
-                Debug.Log($"[投射武器] 应用继承后的最终速度: {finalVelocity}");
+                
+                if (_showDebugInfo)
+                {
+                    Debug.Log($"[投射武器] 玩家速度: {_playerMotor.Velocity}");
+                    Debug.Log($"[投射武器] 继承速度: {playerVelocity}");
+                    Debug.Log($"[投射武器] 应用继承后的最终速度: {finalVelocity}");
+                }
             }
-            else
+            else if (_showDebugInfo)
             {
                 Debug.Log($"[投射武器] 不继承玩家速度 (继承开关: {_inheritPlayerVelocity}, PlayerMotor存在: {_playerMotor != null})");
             }
             
-            Debug.Log("[投射武器] 调用CreateProjectile");
+            if (_showDebugInfo)
+                Debug.Log("[投射武器] 调用CreateProjectile");
+            
             // 创建投射物
             CreateProjectile(spawnPosition, finalVelocity, direction);
         }
@@ -128,93 +153,159 @@ namespace DWHITE.Weapons
         /// </summary>
         protected virtual void FireMultipleProjectiles(Vector3 spawnPosition, Vector3 baseDirection)
         {
+            if (_showDebugInfo)
+                Debug.Log("[投射武器] FireMultipleProjectiles开始执行");
+            
             int projectileCount = _weaponData.ProjectilesPerShot;
             float spreadAngle = _weaponData.SpreadAngle;
             
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射武器] 散弹投射物数量: {projectileCount}");
+                Debug.Log($"[投射武器] 散射角度: {spreadAngle}");
+            }
+            
             for (int i = 0; i < projectileCount; i++)
             {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射武器] 创建第 {i + 1}/{projectileCount} 个投射物");
+                
                 // 计算散射方向
                 Vector3 spreadDirection = CalculateSpreadDirection(baseDirection, spreadAngle, i, projectileCount);
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[投射武器] 散射方向 {i + 1}: {spreadDirection}");
                 
                 // 计算速度
                 float finalSpeed = CalculateFinalSpeed();
                 Vector3 finalVelocity = spreadDirection * finalSpeed;
+                
+                if (_showDebugInfo)
+                {
+                    Debug.Log($"[投射武器] 投射物 {i + 1} 计算出的最终速度: {finalSpeed}");
+                    Debug.Log($"[投射武器] 投射物 {i + 1} 最终速度向量: {finalVelocity}");
+                }
                 
                 // 应用玩家速度继承
                 if (_inheritPlayerVelocity && _playerMotor != null)
                 {
                     Vector3 playerVelocity = _playerMotor.Velocity * _inheritVelocityFactor;
                     finalVelocity += playerVelocity;
+                    
+                    if (_showDebugInfo)
+                    {
+                        Debug.Log($"[投射武器] 投射物 {i + 1} 玩家速度: {_playerMotor.Velocity}");
+                        Debug.Log($"[投射武器] 投射物 {i + 1} 继承速度: {playerVelocity}");
+                        Debug.Log($"[投射武器] 投射物 {i + 1} 应用继承后的最终速度: {finalVelocity}");
+                    }
                 }
+                else if (_showDebugInfo)
+                {
+                    Debug.Log($"[投射武器] 投射物 {i + 1} 不继承玩家速度 (继承开关: {_inheritPlayerVelocity}, PlayerMotor存在: {_playerMotor != null})");
+                }
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[投射武器] 调用CreateProjectile创建投射物 {i + 1}");
                 
                 // 创建投射物
                 CreateProjectile(spawnPosition, finalVelocity, spreadDirection);
             }
-        }        /// <summary>
+            
+            if (_showDebugInfo)
+                Debug.Log("[投射武器] FireMultipleProjectiles执行完成");
+        }
+
+        /// <summary>
         /// 创建投射物
         /// </summary>
         protected virtual void CreateProjectile(Vector3 position, Vector3 velocity, Vector3 direction)
         {
-            Debug.Log($"[投射武器] CreateProjectile 开始执行");
-            Debug.Log($"[投射武器] 投射物预制件: {(_ProjectilePrefab != null ? _ProjectilePrefab.name : "NULL")}");
-            Debug.Log($"[投射武器] 生成位置: {position}");
-            Debug.Log($"[投射武器] 速度: {velocity}");
-            Debug.Log($"[投射武器] 方向: {direction}");
-            Debug.Log($"[投射武器] 网络同步: {_weaponData?.SyncProjectiles}");
-            Debug.Log($"[投射武器] PhotonView存在: {photonView != null}");
-            Debug.Log($"[投射武器] 是我的PhotonView: {photonView?.IsMine}");
-            
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射武器] CreateProjectile 开始执行");
+                Debug.Log($"[投射武器] 投射物预制件: {(_ProjectilePrefab != null ? _ProjectilePrefab.name : "NULL")}");
+                Debug.Log($"[投射武器] 生成位置: {position}");
+                Debug.Log($"[投射武器] 速度: {velocity}");
+                Debug.Log($"[投射武器] 方向: {direction}");
+                Debug.Log($"[投射武器] 网络同步: {_weaponData?.SyncProjectiles}");
+                Debug.Log($"[投射武器] PhotonView存在: {photonView != null}");
+                Debug.Log($"[投射武器] 是我的PhotonView: {photonView?.IsMine}");
+            }
+
             // 网络投射物限制检查
             if (_weaponData.SyncProjectiles && photonView != null && photonView.IsMine)
             {
                 int currentNetworkProjectiles = CountPlayerNetworkProjectiles();
                 if (currentNetworkProjectiles >= _maxNetworkProjectilesPerPlayer)
                 {
-                    Debug.LogWarning($"[投射武器] 达到网络投射物限制 ({currentNetworkProjectiles}/{_maxNetworkProjectilesPerPlayer})，跳过创建");
+                    if (_showDebugInfo)
+                        Debug.LogWarning($"[投射武器] 达到网络投射物限制 ({currentNetworkProjectiles}/{_maxNetworkProjectilesPerPlayer})，跳过创建");
                     return;
                 }
             }
             
             GameObject projectileObj = null;
-            
+
             try
             {
-                // 根据网络设置决定创建方式
-                if (_weaponData.SyncProjectiles && photonView != null && photonView.IsMine)
+                // 检查是否使用ProjectileSettings
+                if (_weaponData.UseProjectileSettings)
                 {
-                    Debug.Log("[投射武器] 使用网络生成投射物");
-                    // 网络生成投射物
-                    object[] initData = new object[] 
-                    { 
-                        velocity.x, velocity.y, velocity.z,
-                        _weaponData.Damage,
-                        photonView.ViewID // 武器来源ID
-                    };
-                    
-                    projectileObj = PhotonNetwork.Instantiate(
-                        _ProjectilePrefab.name, 
-                        position, 
-                        Quaternion.LookRotation(direction),
-                        0,
-                        initData
+                    if (_showDebugInfo)
+                        Debug.Log("[投射武器] 使用ProjectileSettings创建投射物");
+
+                    // 使用新的ProjectileSettings方法
+                    projectileObj = ProjectileManager.Instance.SpawnProjectile(
+                        _ProjectilePrefab,
+                        position,
+                        direction,
+                        velocity,
+                        _weaponData.ProjectileSettings,
+                        this, // 来源武器
+                        gameObject, // 来源玩家
+                        _weaponData.SyncProjectiles // 是否使用网络同步
                     );
-                    Debug.Log($"[投射武器] 网络投射物创建成功: {projectileObj.name}");
                 }
                 else
                 {
-                    Debug.Log("[投射武器] 使用本地生成投射物");
-                    // 本地生成投射物
-                    projectileObj = Instantiate(_ProjectilePrefab, position, Quaternion.LookRotation(direction));
-                    Debug.Log($"[投射武器] 本地投射物创建成功: {projectileObj.name}");
+                    if (_showDebugInfo)
+                        Debug.Log("[投射武器] 使用传统参数创建投射物");
+
+                    // 使用传统的参数方法
+                    projectileObj = ProjectileManager.Instance.SpawnProjectile(
+                        _ProjectilePrefab,
+                        position,
+                        direction,
+                        velocity,
+                        _weaponData.Damage,
+                        this, // 来源武器
+                        gameObject, // 来源玩家
+                        _weaponData.SyncProjectiles // 是否使用网络同步
+                    );
                 }
-                
-                // 配置投射物
+
+                if (projectileObj != null)
+                {
+                    if (_showDebugInfo)
+                        Debug.Log($"[投射武器] 投射物创建成功: {projectileObj.name}");
+                }
+                else
+                {
+                    Debug.LogError("[投射武器] 投射物创建失败");
+                    return;
+                }
+
+                // 额外配置投射物（子类可以重写）
                 ProjectileBase projectile = projectileObj.GetComponent<ProjectileBase>();
                 if (projectile != null)
                 {
-                    Debug.Log("[投射武器] 开始配置投射物");
+                    if (_showDebugInfo)
+                        Debug.Log("[投射武器] 开始额外配置投射物");
+                    
                     ConfigureProjectile(projectile, velocity, direction);
-                    Debug.Log("[投射武器] 投射物配置完成");
+                    
+                    if (_showDebugInfo)
+                        Debug.Log("[投射武器] 投射物额外配置完成");
                 }
                 else
                 {
@@ -229,12 +320,15 @@ namespace DWHITE.Weapons
         }
 
         /// <summary>
-        /// 配置投射物参数
+        /// 配置投射物参数（额外配置，在ProjectileManager配置之后）
         /// </summary>
         protected virtual void ConfigureProjectile(ProjectileBase projectile, Vector3 velocity, Vector3 direction)
         {
-            // 发射投射物
-            projectile.Launch(direction, velocity.magnitude, this, transform.root.gameObject);
+            // 默认实现：什么都不做，因为ProjectileManager已经完成了基础配置
+            // 子类可以重写此方法进行特殊配置
+            
+            if (_showDebugInfo)
+                Debug.Log($"[投射武器] 投射物额外配置完成: {projectile.name}");
         }
         
         #endregion
@@ -311,9 +405,9 @@ namespace DWHITE.Weapons
         /// </summary>
         protected virtual void PlayMuzzleFlash()
         {
-            if (_weaponData?.MuzzleFlashPrefab != null && MuzzlePoint != null)
+            if (_weaponData?.MuzzleFlashPrefab != null && MuzzleFxPoint != null)
             {
-                GameObject flash = Instantiate(_weaponData.MuzzleFlashPrefab, MuzzlePoint.position, MuzzlePoint.rotation);
+                GameObject flash = Instantiate(_weaponData.MuzzleFlashPrefab, MuzzleFxPoint.position, MuzzleFxPoint.rotation);
                 Destroy(flash, 1f);
             }
         }
@@ -332,24 +426,10 @@ namespace DWHITE.Weapons
             float timeDiff = (float)(PhotonNetwork.Time - timestamp);
             
             // 如果不是本地玩家，播放射击效果但不创建真实投射物
-            if (!photonView.IsMine)
-            {
+            if (!photonView.IsMine)            {
                 PlayMuzzleFlash();
                 PlayFireSound();
-                
-                // 可以创建纯视觉的投射物轨迹
-                CreateVisualTrail(direction, timeDiff);
-            }
-        }
-        
-        /// <summary>
-        /// 创建视觉轨迹（仅用于网络同步）
-        /// </summary>
-        protected virtual void CreateVisualTrail(Vector3 direction, float timeOffset)
-        {
-            // 这里可以实现纯视觉的弹道轨迹，用于网络同步时的视觉反馈
-            // 例如：粒子轨迹、线渲染器等
-        }
+            }        }
         
         #endregion
         
@@ -382,6 +462,29 @@ namespace DWHITE.Weapons
             }
         }
         
+        /// <summary>
+        /// 计算当前玩家的网络投射物数量
+        /// </summary>
+        protected virtual int CountPlayerNetworkProjectiles()
+        {
+            if (photonView == null || !photonView.IsMine) return 0;
+            
+            int count = 0;
+            ProjectileBase[] allProjectiles = FindObjectsOfType<ProjectileBase>();
+            
+            foreach (var projectile in allProjectiles)
+            {
+                if (projectile.photonView != null && 
+                    projectile.photonView.Owner == photonView.Owner && 
+                    !projectile.IsDestroyed)
+                {
+                    count++;
+                }
+            }
+            
+            return count;
+        }
+        
         #endregion
         
         #region 调试
@@ -411,28 +514,5 @@ namespace DWHITE.Weapons
 #endif
         
         #endregion
-
-        /// <summary>
-        /// 计算当前玩家的网络投射物数量
-        /// </summary>
-        protected virtual int CountPlayerNetworkProjectiles()
-        {
-            if (photonView == null || !photonView.IsMine) return 0;
-            
-            int count = 0;
-            ProjectileBase[] allProjectiles = FindObjectsOfType<ProjectileBase>();
-            
-            foreach (var projectile in allProjectiles)
-            {
-                if (projectile.photonView != null && 
-                    projectile.photonView.Owner == photonView.Owner && 
-                    !projectile.IsDestroyed)
-                {
-                    count++;
-                }
-            }
-            
-            return count;
-        }
     }
 }
