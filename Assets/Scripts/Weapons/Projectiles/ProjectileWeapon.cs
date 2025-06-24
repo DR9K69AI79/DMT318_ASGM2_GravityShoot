@@ -6,14 +6,12 @@ namespace DWHITE.Weapons
 {
     /// <summary>
     /// 投射型武器实现
-    /// 发射物理投射物的武器基类
-    /// </summary>
+    /// 发射物理投射物的武器基类    /// </summary>
     public class ProjectileWeapon : WeaponBase
     {
         #region 配置
         
         [Header("投射物设置")]
-        [SerializeField] protected GameObject _ProjectilePrefab;
         [SerializeField] protected bool _inheritPlayerVelocity = true;
         [SerializeField] protected float _inheritVelocityFactor = 0.5f;
         [SerializeField] protected Vector3 _spawnOffset = Vector3.zero;
@@ -52,19 +50,18 @@ namespace DWHITE.Weapons
         /// <param name="direction">射击方向</param>
         /// <returns>是否成功开火</returns>
         protected override bool FireImplementation(Vector3 direction)
-        {
-            if (_showDebugInfo)
+        {            if (_showDebugInfo)
             {
                 Debug.Log("[投射武器] FireImplementation方法开始执行");
                 Debug.Log($"[投射武器] 武器数据存在: {_weaponData != null}");
-                Debug.Log($"[投射武器] 投射物预制件存在: {_ProjectilePrefab != null}");
+                Debug.Log($"[投射武器] 投射物预制件存在: {ProjectilePrefab != null}");
             }
 
-            if (_weaponData == null || _ProjectilePrefab == null)
+            if (_weaponData == null || ProjectilePrefab == null)
             {
                 Debug.LogError($"[投射武器] {gameObject.name} 缺少投射物预制件");
                 Debug.LogError($"[投射武器] 武器数据: {(_weaponData != null ? "存在" : "不存在")}");
-                Debug.LogError($"[投射武器] 投射物预制件: {(_ProjectilePrefab != null ? "存在" : "不存在")}");
+                Debug.LogError($"[投射武器] 投射物预制件: {(ProjectilePrefab != null ? "存在" : "不存在")}");
                 return false;
             }
 
@@ -219,11 +216,10 @@ namespace DWHITE.Weapons
         /// 创建投射物
         /// </summary>
         protected virtual void CreateProjectile(Vector3 position, Vector3 velocity, Vector3 direction)
-        {
-            if (_showDebugInfo)
+        {            if (_showDebugInfo)
             {
                 Debug.Log($"[投射武器] CreateProjectile 开始执行");
-                Debug.Log($"[投射武器] 投射物预制件: {(_ProjectilePrefab != null ? _ProjectilePrefab.name : "NULL")}");
+                Debug.Log($"[投射武器] 投射物预制件: {(ProjectilePrefab != null ? ProjectilePrefab.name : "NULL")}");
                 Debug.Log($"[投射武器] 生成位置: {position}");
                 Debug.Log($"[投射武器] 速度: {velocity}");
                 Debug.Log($"[投射武器] 方向: {direction}");
@@ -252,11 +248,9 @@ namespace DWHITE.Weapons
                 if (_weaponData.UseProjectileSettings)
                 {
                     if (_showDebugInfo)
-                        Debug.Log("[投射武器] 使用ProjectileSettings创建投射物");
-
-                    // 使用新的ProjectileSettings方法
+                        Debug.Log("[投射武器] 使用ProjectileSettings创建投射物");                    // 使用新的ProjectileSettings方法
                     projectileObj = ProjectileManager.Instance.SpawnProjectile(
-                        _ProjectilePrefab,
+                        ProjectilePrefab,
                         position,
                         direction,
                         velocity,
@@ -273,7 +267,7 @@ namespace DWHITE.Weapons
 
                     // 使用传统的参数方法
                     projectileObj = ProjectileManager.Instance.SpawnProjectile(
-                        _ProjectilePrefab,
+                        ProjectilePrefab,
                         position,
                         direction,
                         velocity,
@@ -306,10 +300,9 @@ namespace DWHITE.Weapons
                     
                     if (_showDebugInfo)
                         Debug.Log("[投射武器] 投射物额外配置完成");
-                }
-                else
+                }                else
                 {
-                    Debug.LogError($"[投射武器] 投射物预制件 {_ProjectilePrefab.name} 缺少 ProjectileBase 组件");
+                    Debug.LogError($"[投射武器] 投射物预制件 {ProjectilePrefab.name} 缺少 ProjectileBase 组件");
                 }
             }
             catch (System.Exception e)
@@ -438,25 +431,24 @@ namespace DWHITE.Weapons
         /// <summary>
         /// 验证投射物预制件
         /// </summary>
-        protected override void ValidateConfiguration()
-        {
+        protected override void ValidateConfiguration()        {
             base.ValidateConfiguration();
             
-            if (_ProjectilePrefab != null)
+            if (ProjectilePrefab != null)
             {
-                ProjectileBase projectileComponent = _ProjectilePrefab.GetComponent<ProjectileBase>();
+                ProjectileBase projectileComponent = ProjectilePrefab.GetComponent<ProjectileBase>();
                 if (projectileComponent == null)
                 {
-                    Debug.LogError($"[投射武器] 投射物预制件 {_ProjectilePrefab.name} 缺少 ProjectileBase 组件");
+                    Debug.LogError($"[投射武器] 投射物预制件 {ProjectilePrefab.name} 缺少 ProjectileBase 组件");
                 }
                 
                 // 检查网络组件
                 if (_weaponData.SyncProjectiles)
                 {
-                    PhotonView projectilePhotonView = _ProjectilePrefab.GetComponent<PhotonView>();
+                    PhotonView projectilePhotonView = ProjectilePrefab.GetComponent<PhotonView>();
                     if (projectilePhotonView == null)
                     {
-                        Debug.LogWarning($"[投射武器] 网络同步投射物 {_ProjectilePrefab.name} 缺少 PhotonView 组件");
+                        Debug.LogWarning($"[投射武器] 网络同步投射物 {ProjectilePrefab.name} 缺少 PhotonView 组件");
                     }
                 }
             }
@@ -487,6 +479,15 @@ namespace DWHITE.Weapons
         
         #endregion
         
+        #region 属性访问器
+        
+        /// <summary>
+        /// 获取投射物预制体（从WeaponData的ProjectileSettings中获取）
+        /// </summary>
+        protected GameObject ProjectilePrefab => _weaponData?.ProjectileSettings?.ProjectilePrefab;
+        
+        #endregion
+        
         #region 调试
         
 #if UNITY_EDITOR
@@ -513,6 +514,32 @@ namespace DWHITE.Weapons
         }
 #endif
         
+        #endregion
+        
+        #region 向后兼容性和迁移提示
+        
+#if UNITY_EDITOR
+        /// <summary>
+        /// 编辑器中的配置验证和迁移提示
+        /// </summary>
+        private void OnValidate()
+        {
+            if (_weaponData == null)
+            {
+                Debug.LogWarning($"[投射武器] {gameObject.name} 缺少 WeaponData 配置");
+                return;
+            }
+            
+            if (!_weaponData.UseProjectileSettings || _weaponData.ProjectileSettings == null)
+            {
+                Debug.LogWarning($"[投射武器] {gameObject.name} 建议启用 ProjectileSettings 系统以获得更好的配置管理");
+            }
+            else if (_weaponData.ProjectileSettings.ProjectilePrefab == null)
+            {
+                Debug.LogError($"[投射武器] {gameObject.name} 的 ProjectileSettings 中缺少投射物预制体配置");
+            }
+        }
+#endif
         #endregion
     }
 }

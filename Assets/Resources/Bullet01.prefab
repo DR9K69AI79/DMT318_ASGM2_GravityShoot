@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 785580874202314293}
   - component: {fileID: 362735478477318938}
   - component: {fileID: -1110427357983743528}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: Bullet01
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -110,7 +110,7 @@ MonoBehaviour:
   _damageableTag: Player
   _damageableLayers:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 255
   _maxRange: 100
 --- !u!114 &362735478477318938
 MonoBehaviour:
@@ -170,7 +170,7 @@ GameObject:
   - component: {fileID: 3636705719646715441}
   - component: {fileID: 3683249783296800608}
   - component: {fileID: 4260183694370474715}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: Bullet01_single_standardShader
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -220,7 +220,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 8ab8c3daa662ff24f86a9340066fbdd9, type: 2}
+  - {fileID: 2100000, guid: ea9fa25e35f0ccb40a6389b6fb1f47a6, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -254,6 +254,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: TrailEffector01
+      objectReference: {fileID: 0}
+    - target: {fileID: 1697291515947970758, guid: c983806bad792ad46befd059b0ac568b,
+        type: 3}
+      propertyPath: m_Layer
+      value: 9
       objectReference: {fileID: 0}
     - target: {fileID: 1697291515947970758, guid: c983806bad792ad46befd059b0ac568b,
         type: 3}

@@ -275,6 +275,7 @@ namespace DWHITE
         private void UpdateMovementAxes()
         {
             if (_cameraController == null) return;
+            // 当角色在地面上并且重力超过阈值时，使用相机的水平前向和右向方向。
             if (_onGround && _tuning.enterAirGravityThreshold < CustomGravity.GetGravity(_rb.position).magnitude)
             {
                 ForwardAxis = _cameraController.HorizontalForwardDirection;
@@ -282,6 +283,7 @@ namespace DWHITE
             }
             else
             {
+                // 否则，使用相机的世界前向和右向方向。
                 ForwardAxis = _camOrientation.forward;
                 RightAxis = _camOrientation.right;
             }

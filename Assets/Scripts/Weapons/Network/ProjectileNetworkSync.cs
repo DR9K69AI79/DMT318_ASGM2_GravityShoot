@@ -67,11 +67,18 @@ namespace DWHITE.Weapons.Network
             _networkRotation = transform.rotation;
             _networkVelocity = _rigidbody ? _rigidbody.velocity : Vector3.zero;
             
-            // 如果不是所有者，设置为运动学模式以避免物理冲突
+            // 关键修复：如果不是所有者，设置为运动学模式以避免物理冲突
             if (!photonView.IsMine && _rigidbody != null)
             {
                 _rigidbody.isKinematic = true;
-                LogNetwork("非所有者投射物设置为运动学模式");
+                _rigidbody.useGravity = false; // 禁用Unity重力
+                LogNetwork("非所有者投射物设置为运动学模式，禁用物理计算");
+            }
+            else if (photonView.IsMine && _rigidbody != null)
+            {
+                // 确保所有者的投射物保持物理计算
+                _rigidbody.isKinematic = false;
+                LogNetwork("所有者投射物保持物理计算模式");
             }
             
             LogNetwork($"投射物网络同步已初始化 - 所有者: {photonView.Owner?.NickName}");
@@ -144,21 +151,42 @@ namespace DWHITE.Weapons.Network
         {
             float distance = Vector3.Distance(transform.position, _networkPosition);
             
-            if (_enableClientPrediction && _hasPrediction)
+            // 对于运动学投射物，直接应用网络位置以确保同步
+            if (_rigidbody != null && _rigidbody.isKinematic)
             {
-                // 使用客户端预测
-                ApplyClientPrediction();
+                // 运动学模式：直接移动到网络位置
+                if (_useInterpolation && distance < _predictionTolerance * 2f)
+                {
+                    // 使用更快的插值速度
+                    transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _correctionSpeed * 2f);
+                }
+                else
+                {
+                    // 直接设置位置
+                    transform.position = _networkPosition;
+                }
+                
+                if (_showDebugInfo && distance > 0.1f)
+                {
+                    LogNetwork($"运动学投射物位置同步 - 距离: {distance:F2}");
+                }
             }
-            else if (_useInterpolation && distance < _predictionTolerance)
+            else
             {
-                // 使用插值
-                transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _correctionSpeed);
-            }
-            else if (distance > _predictionTolerance)
-            {
-                // 距离过大，直接设置位置
-                transform.position = _networkPosition;
-                LogNetwork($"位置校正 - 距离: {distance:F2}");
+                // 物理模式：使用预测和校正
+                if (_enableClientPrediction && _hasPrediction)
+                {
+                    ApplyClientPrediction();
+                }
+                else if (_useInterpolation && distance < _predictionTolerance)
+                {
+                    transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _correctionSpeed);
+                }
+                else if (distance > _predictionTolerance)
+                {
+                    transform.position = _networkPosition;
+                    LogNetwork($"物理投射物位置校正 - 距离: {distance:F2}");
+                }
             }
         }
         
@@ -306,8 +334,7 @@ namespace DWHITE.Weapons.Network
         #endregion
         
         #region NetworkSyncBase 实现
-        
-        protected override void WriteData(PhotonStream stream)
+          protected override void WriteData(PhotonStream stream)
         {
             // 位置同步
             if (_syncPosition)
@@ -334,9 +361,12 @@ namespace DWHITE.Weapons.Network
             // 投射物状态
             stream.SendNext(_projectile ? _projectile.Lifetime : 0f);
             stream.SendNext(_networkBounceCount);
-        }
-
-        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
+            
+            if (_showDebugInfo)
+            {
+                LogNetwork($"发送网络数据 - 位置: {transform.position}, 速度: {(_rigidbody ? _rigidbody.velocity : Vector3.zero)}");
+            }
+        }        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
         {
             // 接收位置
             if (_syncPosition)
@@ -364,6 +394,11 @@ namespace DWHITE.Weapons.Network
             
             // 记录接收时间
             _lastSendTime = Time.time;
+            
+            if (_showDebugInfo)
+            {
+                LogNetwork($"接收网络数据 - 位置: {_networkPosition}, 速度: {_networkVelocity}");
+            }
         }
 
         #endregion

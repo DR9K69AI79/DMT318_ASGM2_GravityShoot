@@ -4,12 +4,11 @@ using System.Collections;
 using Photon.Pun;
 
 namespace DWHITE.Weapons.Network
-{
-    /// <summary>
-    /// 投射物管理器
-    /// 处理投射物的网络创建、销毁和池化，减少网络开销
+{    /// <summary>
+    /// 投射物管理器 - 简化版本
+    /// 只处理投射物的网络生成事件，运动交给本地物理计算
     /// </summary>
-    public class ProjectileManager : MonoBehaviourPun, IPunObservable
+    public class ProjectileManager : MonoBehaviourPun
     {
         #region 单例模式
         
@@ -33,44 +32,25 @@ namespace DWHITE.Weapons.Network
         }
         
         #endregion
+          #region 配置
         
-        #region 配置
-        
-        [Header("投射物池配置")]
+        [Header("投射物管理")]
         [SerializeField] private int _maxActiveProjectiles = 100;
         [SerializeField] private float _cleanupInterval = 5f;
-        [SerializeField] private float _networkUpdateRate = 30f;
         
-        [Header("性能优化")]
-        [SerializeField] private bool _enableCulling = true;
-        [SerializeField] private float _cullingDistance = 200f;
-        [SerializeField] private bool _batchNetworkCalls = true;
-        [SerializeField] private int _maxBatchSize = 10;
+        [Header("网络设置")]
+        [SerializeField] private bool _enableNetworkSpawn = true;
+        [SerializeField] private float _spamProtectionInterval = 0.05f; // 防刷保护
         
         [Header("调试")]
         [SerializeField] private bool _showDebugInfo = false;
-        [SerializeField] private bool _logNetworkActivity = false;
         
         #endregion
-        
-        #region 状态管理
+          #region 状态管理
         
         private Dictionary<int, ProjectileBase> _activeProjectiles = new Dictionary<int, ProjectileBase>();
-        private Queue<int> _pendingDestroyQueue = new Queue<int>();
-        private List<ProjectileData> _batchedProjectileData = new List<ProjectileData>();
-        private float _lastNetworkUpdate;
+        private float _lastSpawnTime = 0f; // 防刷保护用的时间戳
         private int _nextProjectileId = 1;
-        
-        [System.Serializable]
-        private struct ProjectileData
-        {
-            public int id;
-            public Vector3 position;
-            public Vector3 velocity;
-            public Quaternion rotation;
-            public float damage;
-            public bool isDestroyed;
-        }
         
         #endregion
         
@@ -95,19 +75,10 @@ namespace DWHITE.Weapons.Network
             StartCoroutine(CleanupRoutine());
             LogActivity("投射物管理器已启动");
         }
-        
-        private void Update()
+          private void Update()
         {
-            if (photonView.IsMine)
-            {
-                ProcessPendingDestroy();
-                
-                if (_batchNetworkCalls && Time.time - _lastNetworkUpdate >= 1f / _networkUpdateRate)
-                {
-                    BatchUpdateProjectiles();
-                    _lastNetworkUpdate = Time.time;
-                }
-            }
+            // 简化版本：只处理基本的清理工作
+            // 投射物的运动完全交给本地物理计算
         }
         
         #endregion
@@ -143,12 +114,15 @@ namespace DWHITE.Weapons.Network
                 Debug.LogError("[ProjectileManager] 投射物预制体为空");
                 return null;
             }
+              GameObject projectileObj = null;
             
-            GameObject projectileObj = null;
+            // 修复网络逻辑：检查武器的所有者而不是ProjectileManager的所有者
+            bool shouldUseNetworking = useNetworking && PhotonNetwork.IsConnected;
+            bool isWeaponOwner = sourceWeapon != null && sourceWeapon.photonView != null && sourceWeapon.photonView.IsMine;
             
-            if (useNetworking && PhotonNetwork.IsConnected && photonView.IsMine)
+            if (shouldUseNetworking && isWeaponOwner)
             {
-                // 网络同步投射物
+                // 网络同步投射物 - 由武器所有者创建
                 object[] initData = new object[] 
                 { 
                     velocity.x, velocity.y, velocity.z,
@@ -175,19 +149,43 @@ namespace DWHITE.Weapons.Network
                 
                 if (_showDebugInfo)
                 {
-                    LogActivity($"网络投射物创建成功: {projectileObj.name}");
+                    LogActivity($"网络投射物创建成功: {projectileObj.name} (武器所有者: {sourceWeapon.photonView.Owner?.NickName})");
                 }
+            }
+            else if (shouldUseNetworking && !isWeaponOwner)
+            {
+                // 非武器所有者：不创建投射物，等待网络同步
+                if (_showDebugInfo)
+                {
+                    LogActivity($"非武器所有者跳过投射物创建，等待网络同步");
+                }
+                return null;
             }
             else
             {
                 // 本地投射物
-                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));
-                
-                // 手动配置投射物参数
+                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));                // 手动配置投射物参数
                 ProjectileBase projectileBase = projectileObj.GetComponent<ProjectileBase>();
                 if (projectileBase != null)
                 {
-                    projectileBase.Configure(velocity, damage, sourceWeapon, sourcePlayer);
+                    // 尝试从源武器获取ProjectileSettings
+                    if (sourceWeapon != null && sourceWeapon.WeaponData != null && sourceWeapon.WeaponData.UseProjectileSettings)
+                    {
+                        var settings = sourceWeapon.WeaponData.ProjectileSettings;
+                        if (settings != null)
+                        {
+                            projectileBase.Configure(settings, velocity, direction, sourceWeapon, sourcePlayer);
+                        }
+                        else
+                        {
+                            projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                        }
+                    }
+                    else
+                    {
+                        // 回退到Launch方法（向后兼容旧武器）
+                        projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                    }
                 }
                 
                 if (_showDebugInfo)
@@ -265,10 +263,13 @@ namespace DWHITE.Weapons.Network
                 Debug.LogError("[ProjectileManager] ProjectileSettings为空，回退到默认参数");
                 return SpawnProjectile(prefab, position, direction, velocity, 20f, sourceWeapon, sourcePlayer, useNetworking);
             }
+              GameObject projectileObj = null;
             
-            GameObject projectileObj = null;
+            // 修复网络逻辑：检查武器的所有者而不是ProjectileManager的所有者
+            bool shouldUseNetworking = useNetworking && PhotonNetwork.IsConnected;
+            bool isWeaponOwner = sourceWeapon != null && sourceWeapon.photonView != null && sourceWeapon.photonView.IsMine;
             
-            if (useNetworking && PhotonNetwork.IsConnected && photonView.IsMine)
+            if (shouldUseNetworking && isWeaponOwner)
             {
                 // 网络同步投射物 - 传递完整的ProjectileSettings数据
                 object[] initData = CreateProjectileSettingsNetworkData(velocity, projectileSettings, sourceWeapon);
@@ -283,8 +284,17 @@ namespace DWHITE.Weapons.Network
                 
                 if (_showDebugInfo)
                 {
-                    LogActivity($"网络投射物创建成功 (ProjectileSettings): {projectileObj.name}");
+                    LogActivity($"网络投射物创建成功 (ProjectileSettings): {projectileObj.name} (武器所有者: {sourceWeapon.photonView.Owner?.NickName})");
                 }
+            }
+            else if (shouldUseNetworking && !isWeaponOwner)
+            {
+                // 非武器所有者：不创建投射物，等待网络同步
+                if (_showDebugInfo)
+                {
+                    LogActivity($"非武器所有者跳过投射物创建，等待网络同步 (ProjectileSettings)");
+                }
+                return null;
             }
             else
             {
@@ -435,108 +445,28 @@ namespace DWHITE.Weapons.Network
                 }
             }
         }
-        
-        /// <summary>
-        /// 请求销毁投射物
+          /// <summary>
+        /// 请求销毁投射物（简化版本）
         /// </summary>
         public void RequestDestroyProjectile(int projectileId)
         {
             if (_activeProjectiles.ContainsKey(projectileId))
             {
-                _pendingDestroyQueue.Enqueue(projectileId);
-                LogActivity($"请求销毁投射物 ID: {projectileId}");
-            }
-        }
-        
-        #endregion
-        
-        #region 网络同步优化
-        
-        /// <summary>
-        /// 批量更新投射物状态
-        /// </summary>
-        private void BatchUpdateProjectiles()
-        {
-            _batchedProjectileData.Clear();
-            
-            foreach (var kvp in _activeProjectiles)
-            {
-                ProjectileBase projectile = kvp.Value;
-                if (projectile != null && !projectile.IsDestroyed)
-                {
-                    // 距离剔除
-                    if (_enableCulling && Vector3.Distance(projectile.transform.position, transform.position) > _cullingDistance)
-                    {
-                        RequestDestroyProjectile(kvp.Key);
-                        continue;
-                    }
-                    
-                    _batchedProjectileData.Add(new ProjectileData
-                    {
-                        id = kvp.Key,
-                        position = projectile.transform.position,
-                        velocity = projectile.Velocity,
-                        rotation = projectile.transform.rotation,
-                        damage = projectile.Damage,
-                        isDestroyed = false
-                    });
-                }
-                else
-                {
-                    RequestDestroyProjectile(kvp.Key);
-                }
-                
-                if (_batchedProjectileData.Count >= _maxBatchSize)
-                    break;
-            }
-            
-            // 通过网络同步批量数据
-            if (_batchedProjectileData.Count > 0)
-            {
-                photonView.RPC("OnProjectileBatchUpdate", RpcTarget.Others, SerializeProjectileData(_batchedProjectileData.ToArray()));
-            }
-        }
-        
-        [PunRPC]
-        private void OnProjectileBatchUpdate(byte[] serializedData)
-        {
-            ProjectileData[] projectileData = DeserializeProjectileData(serializedData);
-            
-            foreach (var data in projectileData)
-            {
-                if (_activeProjectiles.TryGetValue(data.id, out ProjectileBase projectile))
+                // 直接执行本地销毁，不再进行复杂的网络同步
+                if (_activeProjectiles.TryGetValue(projectileId, out ProjectileBase projectile))
                 {
                     if (projectile != null && !projectile.IsDestroyed)
                     {
-                        // 应用网络状态
-                        ApplyNetworkStateToProjectile(projectile, data);
+                        projectile.DestroyProjectile();
                     }
                 }
+                UnregisterProjectile(projectileId);
+                LogActivity($"销毁投射物 ID: {projectileId}");
             }
         }
-        
-        #endregion
+          #endregion
         
         #region 清理系统
-        
-        /// <summary>
-        /// 处理待销毁队列
-        /// </summary>
-        private void ProcessPendingDestroy()
-        {
-            int processCount = 0;
-            while (_pendingDestroyQueue.Count > 0 && processCount < _maxBatchSize)
-            {
-                int projectileId = _pendingDestroyQueue.Dequeue();
-                
-                if (_activeProjectiles.TryGetValue(projectileId, out ProjectileBase projectile))
-                {
-                    SafeDestroyProjectile(projectile, projectileId);
-                }
-                
-                processCount++;
-            }
-        }
           /// <summary>
         /// 安全销毁投射物
         /// </summary>
@@ -591,8 +521,7 @@ namespace DWHITE.Weapons.Network
                 LogActivity($"接收到销毁通知，但投射物 {projectileId} 已不存在（可能是网络延迟）");
             }
         }
-        
-        /// <summary>
+          /// <summary>
         /// 强制清理最老的投射物
         /// </summary>
         private void ForceCleanupOldest()
@@ -606,7 +535,7 @@ namespace DWHITE.Weapons.Network
                     keysToRemove.Add(kvp.Key);
                 }
                 
-                if (keysToRemove.Count >= _maxBatchSize)
+                if (keysToRemove.Count >= 10) // 简化的固定值
                     break;
             }
             
@@ -646,81 +575,22 @@ namespace DWHITE.Weapons.Network
                 }
             }
         }
-        
-        #endregion
-        
-        #region 数据序列化
-        
-        private byte[] SerializeProjectileData(ProjectileData[] data)
-        {
-            // 简单的二进制序列化，实际项目中可以使用更高效的方案
-            return System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(new SerializableArray<ProjectileData> { items = data }));
-        }
-        
-        private ProjectileData[] DeserializeProjectileData(byte[] data)
-        {
-            string json = System.Text.Encoding.UTF8.GetString(data);
-            return JsonUtility.FromJson<SerializableArray<ProjectileData>>(json).items;
-        }
-        
-        [System.Serializable]
-        private class SerializableArray<T>
-        {
-            public T[] items;
-        }
-        
-        #endregion
+          #endregion
         
         #region 辅助方法
-        
-        private int GetNextProjectileId()
+          private int GetNextProjectileId()
         {
             return _nextProjectileId++;
         }
         
-        private void ApplyNetworkStateToProjectile(ProjectileBase projectile, ProjectileData data)
-        {
-            // 应用位置、旋转和速度
-            projectile.transform.position = Vector3.Lerp(projectile.transform.position, data.position, Time.deltaTime * 10f);
-            projectile.transform.rotation = Quaternion.Lerp(projectile.transform.rotation, data.rotation, Time.deltaTime * 10f);
-            
-            if (projectile.GetComponent<Rigidbody>() != null)
-            {
-                projectile.GetComponent<Rigidbody>().velocity = Vector3.Lerp(projectile.GetComponent<Rigidbody>().velocity, data.velocity, Time.deltaTime * 5f);
-            }
-        }
-        
         private void LogActivity(string message)
         {
-            if (_logNetworkActivity)
+            if (_showDebugInfo)
             {
                 Debug.Log($"[投射物管理器] {message}");
             }
         }
-        
-        #endregion
-        
-        #region IPunObservable 实现
-        
-        public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
-        {
-            if (stream.IsWriting)
-            {
-                // 发送活跃投射物数量
-                stream.SendNext(_activeProjectiles.Count);
-            }
-            else
-            {
-                // 接收数据（用于监控）
-                int remoteCount = (int)stream.ReceiveNext();
-                if (_showDebugInfo)
-                {
-                    LogActivity($"远程投射物数量: {remoteCount}, 本地: {_activeProjectiles.Count}");
-                }
-            }
-        }
-        
-        #endregion
+          #endregion
         
         #region 公共API
         
@@ -731,8 +601,7 @@ namespace DWHITE.Weapons.Network
         {
             return _activeProjectiles.Count;
         }
-        
-        /// <summary>
+          /// <summary>
         /// 强制清理所有投射物
         /// </summary>
         public void ClearAllProjectiles()
@@ -741,11 +610,10 @@ namespace DWHITE.Weapons.Network
             {
                 if (kvp.Value != null)
                 {
-                    SafeDestroyProjectile(kvp.Value, kvp.Key);
+                    kvp.Value.DestroyProjectile();
                 }
             }
             _activeProjectiles.Clear();
-            _pendingDestroyQueue.Clear();
         }
         
         #endregion

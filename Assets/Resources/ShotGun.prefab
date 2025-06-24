@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1444806625552579910
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2090311685271531244}
+  m_Layer: 0
+  m_Name: MuzzleFXPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2090311685271531244
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1444806625552579910}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.14, z: 1.12}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 863233551074710919}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &5017307922901780007
 GameObject:
   m_ObjectHideFlags: 0
@@ -93,7 +124,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2576903061028367417}
   m_Layer: 0
-  m_Name: Muzzle
+  m_Name: MuzzlePoint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -146,6 +177,7 @@ Transform:
   m_Children:
   - {fileID: 6347015007075036782}
   - {fileID: 2576903061028367417}
+  - {fileID: 2090311685271531244}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1750538963419144134
@@ -162,8 +194,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _weaponData: {fileID: 11400000, guid: 1507143aaf01bed449711edf3f7b41f7, type: 2}
   _muzzlePoint: {fileID: 2576903061028367417}
+  _muzzleFxPoint: {fileID: 2090311685271531244}
   _showDebugInfo: 1
-  _ProjectilePrefab: {fileID: 5752635059257427460, guid: 75dd1dcde49f79447899adbf669f7244,
+  _ProjectilePrefab: {fileID: 2416525086415560961, guid: 5e34540942e0cf3479fe6da5f4db383b,
     type: 3}
   _inheritPlayerVelocity: 0
   _inheritVelocityFactor: 0.5

@@ -4930,7 +4930,7 @@ GameObject:
   - component: {fileID: 719657563245746782}
   - component: {fileID: 719657563245746783}
   m_Layer: 0
-  m_Name: FX_Shoot_muzzle
+  m_Name: FX_ShotGun_Shoot_muzzle 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

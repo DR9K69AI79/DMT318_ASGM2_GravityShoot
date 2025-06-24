@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1530726835990622301
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6525558877192591476}
+  - component: {fileID: 8643322835272316136}
+  m_Layer: 0
+  m_Name: NetworkTestHelper
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6525558877192591476
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1530726835990622301}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8643322835272316136
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1530726835990622301}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4965d58d9f60114fa909b4d21289f47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _autoStartOnAwake: 1
+  _testRoomName: TestRoom2
+  _maxPlayers: 4
+  _useRandomRoomName: 0
+  _playerPrefab: {fileID: 1941056441475067755, guid: 1f3b657bf542d4b4aa2c06d8582e14d9,
+    type: 3}
+  _spawnPoints:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  _autoSpawnPlayer: 1
+  _showConnectionStatus: 1
+  _showRoomInfo: 1
+  _enableVerboseLogging: 1
+  _quickJoinKey: 282
+  _quickLeaveKey: 283
+  _spawnPlayerKey: 284
+  _fixJumpKey: 285
+  _testSyncObject: 0
+  _testObjectPrefab: {fileID: 9059368513802852602, guid: 48b1287c9c271664db81bd6c002915dd,
+    type: 3}
+  _testObjectSpawnInterval: 60

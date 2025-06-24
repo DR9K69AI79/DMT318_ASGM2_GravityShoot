@@ -8,7 +8,12 @@ namespace DWHITE.Weapons
     /// </summary>
     [System.Serializable]
     public class ProjectileSettings
-    {        [Header("━━━ 基础投射物设置 ━━━")]
+    {
+        [Header("━━━ 投射物预制体 ━━━")]
+        [Tooltip("投射物预制体，必须包含ProjectileBase组件")]
+        [SerializeField] private GameObject _projectilePrefab;
+        
+        [Header("━━━ 基础投射物设置 ━━━")]
         [Tooltip("投射物飞行速度 (m/s)，推荐范围: 10-200")]
         [Range(1f, 500f)]
         [SerializeField] private float _speed = 20f;
@@ -108,6 +113,7 @@ namespace DWHITE.Weapons
         #region 属性访问器
         
         // 基础设置
+        public GameObject ProjectilePrefab => _projectilePrefab;
         public float Speed => _speed;
         public float Damage => _damage;
         public float MaxRange => _maxRange;
@@ -209,6 +215,16 @@ namespace DWHITE.Weapons
 #if UNITY_EDITOR
         public void OnValidate()
         {
+            // 验证投射物预制体
+            if (_projectilePrefab != null)
+            {
+                var projectileBase = _projectilePrefab.GetComponent<ProjectileBase>();
+                if (projectileBase == null)
+                {
+                    UnityEngine.Debug.LogError($"投射物预制体 {_projectilePrefab.name} 缺少 ProjectileBase 组件");
+                }
+            }
+            
             // 确保数值在合理范围内
             _speed = Mathf.Max(0.1f, _speed);
             _damage = Mathf.Max(0f, _damage);
@@ -279,6 +295,32 @@ namespace DWHITE.Weapons
             settings._gravityForce = 10f;
             settings._gravityRadius = 8f;
             settings._affectOtherProjectiles = true;
+            return settings;
+        }
+        
+        #endregion
+        
+        #region 迁移工具
+        
+        /// <summary>
+        /// 从旧版本的ProjectileWeapon配置迁移到ProjectileSettings
+        /// </summary>
+        /// <param name="projectilePrefab">投射物预制体</param>
+        /// <param name="speed">飞行速度</param>
+        /// <param name="damage">伤害值</param>
+        /// <param name="range">射程</param>
+        public static ProjectileSettings CreateFromLegacyConfiguration(
+            GameObject projectilePrefab, 
+            float speed = 20f, 
+            float damage = 20f, 
+            float range = 100f)
+        {
+            var settings = new ProjectileSettings();
+            settings._projectilePrefab = projectilePrefab;
+            settings._speed = speed;
+            settings._damage = damage;
+            settings._maxRange = range;
+            settings._lifetime = 10f;
             return settings;
         }
         

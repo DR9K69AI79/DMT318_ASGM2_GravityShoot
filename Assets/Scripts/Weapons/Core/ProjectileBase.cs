@@ -69,16 +69,19 @@ namespace DWHITE.Weapons
         protected bool _useCustomGravity = false;
         protected float _gravityScale = 1f;
         protected float _drag = 0f;
-        
-        // 弹跳参数 - 运行时设置
+          // 弹跳参数 - 运行时设置
         protected int _maxBounces = 0;
         protected float _bounceEnergyLoss = 0.1f;
         protected float _minBounceVelocity = 1f;
-          // 效果预制体 - 运行时设置
-        protected GameObject _impactEffectPrefab;
-        protected AudioClip _impactSound;
-        protected AudioClip _bounceSound;
         
+        // 效果预制体 - 运行时设置
+        protected GameObject _impactEffectPrefab;
+        protected GameObject _explosionEffectPrefab;
+        protected AudioClip _launchSound;
+        protected AudioClip _impactSound;
+        protected AudioClip _explosionSound;
+        protected AudioClip _bounceSound;
+
         [Header("调试选项")]
         [Tooltip("显示调试信息")]
         [SerializeField] protected bool _showDebugInfo = false;
@@ -160,11 +163,9 @@ namespace DWHITE.Weapons
         }
         
         #endregion
-        
-        #region 初始化
+          #region 初始化
         
         /// <summary>
-        /// 初始化组件引用        /// <summary>
         /// 初始化组件引用
         /// </summary>
         protected virtual void InitializeComponents()
@@ -189,18 +190,17 @@ namespace DWHITE.Weapons
             if (_useCustomGravity)
             {
                 _gravityDirection = CustomGravity.GetGravity(transform.position).normalized;
-            }
-
-            // 设置初始速度
+            }            // 设置初始速度
             if (_initialVelocity != Vector3.zero)
             {
                 _rigidbody.velocity = _initialVelocity;
-            }        }
-        
+            }
+        }
+
         #endregion
-        
+
         #region 发射系统
-        
+
         /// <summary>
         /// 发射投射物
         /// </summary>
@@ -213,22 +213,49 @@ namespace DWHITE.Weapons
             _speed = speed;
             _sourceWeapon = sourceWeapon;
             _sourcePlayer = sourcePlayer;
-            
+
+            // 尝试从源武器获取配置（向后兼容）
+            if (sourceWeapon != null && sourceWeapon.WeaponData != null)
+            {
+                if (sourceWeapon.WeaponData.UseProjectileSettings && sourceWeapon.WeaponData.ProjectileSettings != null)
+                {
+                    var settings = sourceWeapon.WeaponData.ProjectileSettings;
+                    _damage = settings.Damage;
+                    _lifetime = settings.Lifetime;
+                    _impactEffectPrefab = settings.ImpactEffectPrefab;
+                    _explosionEffectPrefab = settings.ExplosionEffectPrefab;
+                    _launchSound = settings.LaunchSound;
+                    _impactSound = settings.ImpactSound;
+                    _explosionSound = settings.ExplosionSound;
+                    _bounceSound = settings.BounceSound;
+
+                    if (_showDebugInfo)
+                        Debug.Log($"[投射物] Launch方法从武器获取配置: 伤害={_damage}, 特效已设置");
+                }
+                else
+                {
+                    // 回退到基本的伤害值
+                    _damage = sourceWeapon.WeaponData.Damage;
+                }
+            }
+
             // 设置速度
-            _initialVelocity = direction.normalized * speed;
-            if (_rigidbody != null)
+            _initialVelocity = direction.normalized * speed; if (_rigidbody != null)
             {
                 _rigidbody.velocity = _initialVelocity;
             }
-            
+
             // 设置旋转
             if (direction != Vector3.zero)
             {
                 transform.rotation = Quaternion.LookRotation(direction);
             }
-            
+
+            // 播放发射音效
+            PlayLaunchSound();
+
             OnLaunch(direction, speed);
-            
+
             if (_showDebugInfo)
                 Debug.Log($"[投射物] {gameObject.name} 发射，速度: {speed}, 方向: {direction}");
         }
@@ -258,12 +285,14 @@ namespace DWHITE.Weapons
             
             // 创建碰撞信息
             RaycastHit hit = CreateHitInfo(collision.collider, hitPoint, hitNormal);
-            
+
             // 处理命中
             if (ProcessHit(hit))
             {
                 // 如果命中处理返回 true，则销毁投射物
                 DestroyProjectile();
+                PlayImpactEffect(hitPoint, hitNormal);
+                PlayImpactSound();
             }
             else if (CanBounce)
             {
@@ -274,6 +303,8 @@ namespace DWHITE.Weapons
             {
                 // 无法弹跳，销毁投射物
                 DestroyProjectile();
+                PlayImpactEffect(hitPoint, hitNormal);
+                PlayImpactSound();
             }
         }
         
@@ -438,27 +469,30 @@ namespace DWHITE.Weapons
             {
                 DestroyProjectile();
             }
-        }        /// <summary>
+        }
+
+        /// <summary>
         /// 销毁投射物
         /// </summary>
         public virtual void DestroyProjectile()
         {
             if (_isDestroyed) return;
-            
+
             _isDestroyed = true;
-            
+
             // 触发销毁事件
             TriggerProjectileDestroyed();
-            
+
             // 子类销毁逻辑
             OnDestroy();
-            
+
             // 网络销毁
             if (photonView != null && photonView.IsMine)
             {
                 // 安全销毁：先检查PhotonView是否仍然有效
                 if (photonView.ViewID != 0)
-                {                    try
+                {
+                    try
                     {
                         // 添加额外检查，确保对象仍在PhotonNetwork的管理中
                         if (PhotonNetwork.GetPhotonView(photonView.ViewID) != null)
@@ -493,24 +527,36 @@ namespace DWHITE.Weapons
         /// 子类重写的销毁逻辑
         /// </summary>
         protected virtual void OnDestroy() { }
-        
+
         #endregion
-        
+
         #region 效果系统
-        
+
         /// <summary>
         /// 播放撞击效果
         /// </summary>
         protected virtual void PlayImpactEffect(Vector3 position, Vector3 normal)
         {
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射物] PlayImpactEffect 被调用: position={position}, normal={normal}");
+                Debug.Log($"[投射物] _impactEffectPrefab = {(_impactEffectPrefab != null ? _impactEffectPrefab.name : "NULL")}");
+            }
+
             if (_impactEffectPrefab != null)
             {
                 GameObject effect = Instantiate(_impactEffectPrefab, position, Quaternion.LookRotation(normal));
                 Destroy(effect, 5f); // 5秒后自动销毁特效
+
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 成功创建撞击特效: {effect.name}");
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.LogWarning("[投射物] 无法创建撞击特效: _impactEffectPrefab 为空");
             }
         }
-        
-        /// <summary>
+          /// <summary>
         /// 播放撞击音效
         /// </summary>
         protected virtual void PlayImpactSound()
@@ -529,6 +575,54 @@ namespace DWHITE.Weapons
             if (_bounceSound != null)
             {
                 AudioSource.PlayClipAtPoint(_bounceSound, transform.position);
+            }
+        }
+        
+        /// <summary>
+        /// 播放发射音效
+        /// </summary>
+        protected virtual void PlayLaunchSound()
+        {
+            if (_launchSound != null)
+            {
+                AudioSource.PlayClipAtPoint(_launchSound, transform.position);
+            }
+        }
+        
+        /// <summary>
+        /// 播放爆炸特效
+        /// </summary>
+        protected virtual void PlayExplosionEffect(Vector3 position, Vector3 normal = default)
+        {
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射物] PlayExplosionEffect 被调用: position={position}");
+                Debug.Log($"[投射物] _explosionEffectPrefab = {(_explosionEffectPrefab != null ? _explosionEffectPrefab.name : "NULL")}");
+            }
+            
+            if (_explosionEffectPrefab != null)
+            {
+                Quaternion rotation = normal != default(Vector3) ? Quaternion.LookRotation(normal) : Quaternion.identity;
+                GameObject effect = Instantiate(_explosionEffectPrefab, position, rotation);
+                Destroy(effect, 10f); // 10秒后自动销毁爆炸特效（通常比撞击特效持续时间长）
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 成功创建爆炸特效: {effect.name}");
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.LogWarning("[投射物] 无法创建爆炸特效: _explosionEffectPrefab 为空");
+            }
+        }
+        
+        /// <summary>
+        /// 播放爆炸音效
+        /// </summary>
+        protected virtual void PlayExplosionSound()
+        {
+            if (_explosionSound != null)
+            {
+                AudioSource.PlayClipAtPoint(_explosionSound, transform.position);
             }
         }
           #endregion
@@ -558,8 +652,6 @@ namespace DWHITE.Weapons
         /// </summary>
         public virtual void OnNetworkBounce(Vector3 bouncePoint, Vector3 bounceNormal)
         {
-            // 播放弹跳特效（重用命中特效）
-            PlayImpactEffect(bouncePoint, bounceNormal);
             PlayBounceSound();
         }
         
@@ -595,45 +687,11 @@ namespace DWHITE.Weapons
             }
         }
 #endif
-        
+
         #endregion
 
         /// <summary>
-        /// 配置投射物参数（用于工厂模式）
-        /// </summary>
-        /// <param name="velocity">初始速度向量</param>
-        /// <param name="damage">伤害值</param>
-        /// <param name="sourceWeapon">来源武器</param>
-        /// <param name="sourcePlayer">来源玩家</param>
-        public virtual void Configure(Vector3 velocity, float damage, WeaponBase sourceWeapon = null, GameObject sourcePlayer = null)
-        {
-            _damage = damage;
-            _sourceWeapon = sourceWeapon;
-            _sourcePlayer = sourcePlayer;
-            
-            // 设置速度
-            _initialVelocity = velocity;
-            _speed = velocity.magnitude;
-            
-            if (_rigidbody != null)
-            {
-                _rigidbody.velocity = velocity;
-            }
-            
-            // 设置旋转
-            if (velocity != Vector3.zero)
-            {
-                transform.rotation = Quaternion.LookRotation(velocity.normalized);
-            }
-            
-            OnConfigure(velocity, damage);
-            
-            if (_showDebugInfo)
-                Debug.Log($"[投射物] {gameObject.name} 配置完成，速度: {velocity}, 伤害: {damage}");
-        }
-        
-        /// <summary>
-        /// 使用ProjectileSettings配置投射物（新版本）
+        /// 配置投射物参数（使用ProjectileSettings）
         /// </summary>
         /// <param name="settings">投射物设置</param>
         /// <param name="velocity">初始速度</param>
@@ -644,26 +702,25 @@ namespace DWHITE.Weapons
         {
             if (settings == null)
             {
-                Debug.LogWarning("[ProjectileBase] ProjectileSettings为空，使用默认配置");
-                Configure(velocity, _damage, sourceWeapon, sourcePlayer);
+                Debug.LogError("[ProjectileBase] ProjectileSettings为空，无法配置投射物");
                 return;
             }
-            
+
             // 应用ProjectileSettings
             ApplyProjectileSettings(settings);
-            
+
             // 设置基础参数
             _sourceWeapon = sourceWeapon;
             _sourcePlayer = sourcePlayer;
             _initialVelocity = velocity;
-            
+
             // 设置物理属性
             if (_rigidbody != null)
             {
                 _rigidbody.velocity = velocity;
                 _rigidbody.mass = settings.Mass;
                 _rigidbody.drag = settings.Drag;
-                
+
                 if (settings.UseGravity)
                 {
                     // 自定义重力需要在Update中处理
@@ -671,16 +728,19 @@ namespace DWHITE.Weapons
                     _gravityScale = settings.GravityScale;
                 }
             }
-            
+
             // 设置旋转
             if (direction != Vector3.zero)
             {
                 transform.rotation = Quaternion.LookRotation(direction);
             }
-            
+
+            // 播放发射音效
+            PlayLaunchSound();
+
             // 调用子类配置
             OnConfigureWithSettings(settings, velocity, direction);
-            
+
             if (_showDebugInfo)
             {
                 Debug.Log($"[投射物] {gameObject.name} 使用ProjectileSettings配置完成");
@@ -688,7 +748,7 @@ namespace DWHITE.Weapons
                 Debug.Log($"[投射物] 弹跳: {settings.MaxBounceCount}, 引力: {settings.GravityForce}, 爆炸: {settings.ExplosionRadius}");
             }
         }
-        
+
         /// <summary>
         /// 应用ProjectileSettings到投射物
         /// </summary>
@@ -698,31 +758,40 @@ namespace DWHITE.Weapons
             _damage = settings.Damage;
             _speed = settings.Speed;
             _lifetime = settings.Lifetime;
-            
+
             // 物理设置
             _useCustomGravity = settings.UseGravity;
             _gravityScale = settings.GravityScale;
             _drag = settings.Drag;
-            
+
             // 弹跳设置
             _maxBounces = settings.MaxBounceCount;
             _bounceEnergyLoss = settings.BounceEnergyLoss;
-            
+            // 特效设置
+            _impactEffectPrefab = settings.ImpactEffectPrefab;
+            _explosionEffectPrefab = settings.ExplosionEffectPrefab;
+            _launchSound = settings.LaunchSound;
+            _impactSound = settings.ImpactSound;
+            _explosionSound = settings.ExplosionSound;
+            _bounceSound = settings.BounceSound;
+            // 调试信息
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[投射物] ApplyProjectileSettings: ImpactEffectPrefab = {(_impactEffectPrefab != null ? _impactEffectPrefab.name : "NULL")}");
+                Debug.Log($"[投射物] ApplyProjectileSettings: ExplosionEffectPrefab = {(_explosionEffectPrefab != null ? _explosionEffectPrefab.name : "NULL")}");
+                Debug.Log($"[投射物] ApplyProjectileSettings: LaunchSound = {(_launchSound != null ? _launchSound.name : "NULL")}");
+                Debug.Log($"[投射物] ApplyProjectileSettings: ImpactSound = {(_impactSound != null ? _impactSound.name : "NULL")}");
+                Debug.Log($"[投射物] ApplyProjectileSettings: ExplosionSound = {(_explosionSound != null ? _explosionSound.name : "NULL")}");
+            }
+
             // 其他设置会在子类中处理
         }
-        
-        /// <summary>
+          /// <summary>
         /// 子类重写的ProjectileSettings配置逻辑
         /// </summary>
         protected virtual void OnConfigureWithSettings(ProjectileSettings settings, Vector3 velocity, Vector3 direction) 
         { 
-            // 默认实现：调用传统的OnConfigure方法以保持兼容性
-            OnConfigure(velocity, settings.Damage);
+            // 子类可以重写此方法进行额外配置
         }
-        
-        /// <summary>
-        /// 子类重写的传统配置逻辑
-        /// </summary>
-        protected virtual void OnConfigure(Vector3 velocity, float damage) { }
     }
 }

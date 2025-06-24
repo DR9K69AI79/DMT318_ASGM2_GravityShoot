@@ -131,6 +131,9 @@ namespace DWHITE.Weapons
         public ProjectileSettings ProjectileSettings => _projectileSettings;
         public bool UseProjectileSettings => _useProjectileSettings && _projectileSettings != null;
         
+        // 便利访问投射物预制体
+        public GameObject ProjectilePrefab => _useProjectileSettings && _projectileSettings != null ? _projectileSettings.ProjectilePrefab : null;
+        
         // 特殊效果访问（现在只从ProjectileSettings获取）
         public int MaxBounceCount => _useProjectileSettings && _projectileSettings != null ? _projectileSettings.MaxBounceCount : 0;
         public float BounceEnergyLoss => _useProjectileSettings && _projectileSettings != null ? _projectileSettings.BounceEnergyLoss : 0.1f;

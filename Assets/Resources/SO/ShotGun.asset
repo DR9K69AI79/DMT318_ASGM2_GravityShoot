@@ -24,6 +24,8 @@ MonoBehaviour:
   _reloadTime: 4
   _infiniteAmmo: 0
   _projectileSettings:
+    _projectilePrefab: {fileID: 2416525086415560961, guid: 5e34540942e0cf3479fe6da5f4db383b,
+      type: 3}
     _speed: 20
     _damage: 25
     _maxRange: 200
@@ -48,10 +50,11 @@ MonoBehaviour:
       m_Bits: 4294967295
     _penetrationCount: 0
     _penetrationDamageReduction: 0.2
-    _impactEffectPrefab: {fileID: 0}
+    _impactEffectPrefab: {fileID: 7044691720042714530, guid: 482f579a047b68345a311d9ca435cac7,
+      type: 3}
     _explosionEffectPrefab: {fileID: 0}
-    _launchSound: {fileID: 0}
-    _impactSound: {fileID: 0}
+    _launchSound: {fileID: 8300000, guid: 26c5b6d560a62c946accc4e4207b66cc, type: 3}
+    _impactSound: {fileID: 8300000, guid: 87f68829fe92fdf4fbdc235d14dada77, type: 3}
     _explosionSound: {fileID: 0}
     _bounceSound: {fileID: 0}
     _syncMovement: 1
@@ -63,7 +66,7 @@ MonoBehaviour:
   _fireSound: {fileID: 8300000, guid: 0addcc409a57b4a43b86a3d2310ac5b4, type: 3}
   _reloadSound: {fileID: 8300000, guid: c565065df3907944b8b58f0d27066ba8, type: 3}
   _emptySound: {fileID: 8300000, guid: 0c187ee2790c74c4e9985aa1ee1a12d5, type: 3}
-  _muzzleFlashPrefab: {fileID: 5752635059257427460, guid: 75dd1dcde49f79447899adbf669f7244,
+  _muzzleFlashPrefab: {fileID: 719657563245746768, guid: 0e16f1cdd6f7c7b449e5feb2ac6c130f,
     type: 3}
   _recoilPattern: {x: 2, y: 6}
   _recoilRecoveryTime: 1.2
