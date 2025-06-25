@@ -106,11 +106,11 @@ MonoBehaviour:
   _explosionDelay: 0
   _penetrateTargets: 0
   _maxPenetrations: 0
-  _damageOnTouch: 0
+  _damageOnTouch: 1
   _damageableTag: Player
   _damageableLayers:
     serializedVersion: 2
-    m_Bits: 255
+    m_Bits: 511
   _maxRange: 100
 --- !u!114 &362735478477318938
 MonoBehaviour:

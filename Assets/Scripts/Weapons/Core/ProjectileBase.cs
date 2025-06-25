@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using Photon.Pun;
+using Debug = UnityEngine.Debug;
 
 namespace DWHITE.Weapons
 {
@@ -175,7 +176,7 @@ namespace DWHITE.Weapons
             
             if (_rigidbody == null)
             {
-                Debug.LogError($"[投射物] {gameObject.name} 缺少 Rigidbody 组件");
+                UnityEngine.Debug.LogError($"[投射物] {gameObject.name} 缺少 Rigidbody 组件");
             }
         }
         
@@ -293,6 +294,7 @@ namespace DWHITE.Weapons
                 DestroyProjectile();
                 PlayImpactEffect(hitPoint, hitNormal);
                 PlayImpactSound();
+                
             }
             else if (CanBounce)
             {
@@ -793,5 +795,134 @@ namespace DWHITE.Weapons
         { 
             // 子类可以重写此方法进行额外配置
         }
+        
+        #region 伤害处理系统
+        
+        /// <summary>
+        /// 统一伤害处理方法 - 集成DamageSystem
+        /// </summary>
+        /// <param name="hitCollider">命中的碰撞体</param>
+        /// <param name="hitPoint">命中点</param>
+        /// <param name="hitNormal">命中法线</param>
+        /// <param name="isHeadshot">是否爆头</param>
+        /// <returns>是否成功应用伤害</returns>
+        protected virtual bool ApplyDamageToTarget(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal, bool isHeadshot = false)
+        {
+            // 网络同步检查：只有投射物的拥有者才能造成伤害，避免重复伤害
+            if (photonView != null && !photonView.IsMine)
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 非拥有者，跳过伤害处理: PhotonView.IsMine = {photonView.IsMine}");
+                return false;
+            }
+
+            // 查找目标的IDamageable组件
+            DWHITE.IDamageable damageable = hitCollider.GetComponent<DWHITE.IDamageable>();
+            if (damageable == null)
+            {
+                damageable = hitCollider.GetComponentInParent<DWHITE.IDamageable>();
+            }
+
+            if (damageable == null)
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 目标 {hitCollider.name} 不具有IDamageable接口");
+                return false;
+            }
+
+            if (!damageable.IsAlive)
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 目标 {hitCollider.name} 已死亡，跳过伤害");
+                return false;
+            }
+
+            // 计算最终伤害（考虑爆头等因素）
+            float finalDamage = _damage;
+            if (isHeadshot && _sourceWeapon?.WeaponData?.CanHeadshot == true)
+            {
+                finalDamage *= _sourceWeapon.WeaponData.HeadshotMultiplier;
+            }
+
+            // 使用DamageSystem统一处理伤害
+            if (DamageSystem.Instance != null)
+            {
+                // 创建伤害信息
+                DamageInfo damageInfo = new DamageInfo
+                {
+                    damage = finalDamage,
+                    damageType = DamageType.Projectile,
+                    source = _sourcePlayer,
+                    weapon = _sourceWeapon,
+                    projectile = this,
+                    hitPoint = hitPoint,
+                    hitDirection = Velocity.normalized,
+                    hitNormal = hitNormal,
+                    isHeadshot = isHeadshot,
+                    distance = Vector3.Distance(hitPoint, transform.position)
+                };
+
+                // 通过DamageSystem应用伤害
+                DamageSystem.ApplyDamage(damageable, damageInfo);
+
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 通过DamageSystem对 {hitCollider.name} 造成 {finalDamage:F1} 伤害 (爆头: {isHeadshot})");
+                
+                return true;
+            }
+            else
+            {
+                // 回退到直接调用IDamageable接口
+                damageable.TakeDamage(finalDamage, hitPoint, Velocity.normalized);
+                
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 直接对 {hitCollider.name} 造成 {finalDamage:F1} 伤害 (爆头: {isHeadshot})");
+                
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 检查命中是否为爆头
+        /// </summary>
+        /// <param name="hitCollider">命中的碰撞体</param>
+        /// <param name="hitPoint">命中点</param>
+        /// <returns>是否为爆头</returns>
+        protected virtual bool IsHeadshot(Collider hitCollider, Vector3 hitPoint)
+        {
+            // 检查武器是否支持爆头
+            if (_sourceWeapon?.WeaponData?.CanHeadshot != true)
+                return false;
+
+            // 简单的爆头检测：检查碰撞体是否为头部标签
+            if (hitCollider.CompareTag("Head"))
+                return true;
+
+            // 或者通过名称检测
+            if (hitCollider.name.ToLower().Contains("head"))
+                return true;
+
+            // 更复杂的爆头检测可以在子类中重写此方法
+            return false;
+        }
+
+        /// <summary>
+        /// 检查目标是否可以被伤害
+        /// </summary>
+        /// <param name="hitCollider">命中的碰撞体</param>
+        /// <returns>是否可以被伤害</returns>
+        protected virtual bool CanDamageTarget(Collider hitCollider)
+        {
+            // 基本检查：确保目标具有IDamageable接口且存活
+            DWHITE.IDamageable damageable = hitCollider.GetComponent<DWHITE.IDamageable>();
+            if (damageable == null)
+            {
+                damageable = hitCollider.GetComponentInParent<DWHITE.IDamageable>();
+            }
+
+            return damageable != null && damageable.IsAlive;
+        }
+
+        #endregion
     }
 }

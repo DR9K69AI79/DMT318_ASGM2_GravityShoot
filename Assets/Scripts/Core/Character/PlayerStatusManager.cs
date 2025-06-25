@@ -230,6 +230,18 @@ namespace DWHITE
             // 触发本地事件
             OnWeaponChanged?.Invoke(controller.CurrentWeaponIndex);
 
+            // 触发武器收起动画
+            if (weapon?.WeaponData != null && !string.IsNullOrEmpty(weapon.WeaponData.UnequipAnimationName))
+            {
+                OnWeaponAnimationTriggered?.Invoke(weapon.WeaponData.UnequipAnimationName);
+                
+                // 同步武器动画到其他玩家
+                photonView.RPC("RPC_WeaponAnimation", RpcTarget.Others, weapon.WeaponData.UnequipAnimationName);
+            }
+
+            // 通过RPC同步武器切换
+            photonView.RPC("RPC_WeaponSwitched", RpcTarget.Others, controller.CurrentWeaponIndex);
+
             // 触发武器装备动画
             if (weapon?.WeaponData != null && !string.IsNullOrEmpty(weapon.WeaponData.EquipAnimationName))
             {
@@ -245,8 +257,7 @@ namespace DWHITE
                 OnAmmoChanged?.Invoke(weapon.CurrentAmmo, weapon.MaxAmmo);
             }
 
-            // 通过RPC同步武器切换
-            photonView.RPC("RPC_WeaponSwitched", RpcTarget.Others, controller.CurrentWeaponIndex);
+
         }
         private void HandleWeaponFired(WeaponBase weapon)
         {
@@ -291,14 +302,15 @@ namespace DWHITE
             
             OnReloadStateChanged?.Invoke(true);
             photonView.RPC("RPC_ReloadStateChanged", RpcTarget.Others, true);
-        }
-
-        private void HandleReloadCompleted(WeaponBase weapon)
+        }        private void HandleReloadCompleted(WeaponBase weapon)
         {
             if (weapon.transform.root != transform || !photonView.IsMine) return;
             
             OnReloadStateChanged?.Invoke(false);
             photonView.RPC("RPC_ReloadStateChanged", RpcTarget.Others, false);
+            
+            // 换弹完成后触发弹药更新事件
+            OnAmmoChanged?.Invoke(weapon.CurrentAmmo, weapon.MaxAmmo);
         }
 
         #endregion
@@ -726,7 +738,9 @@ namespace DWHITE
                     photonView.RPC("RPC_HealthChanged", RpcTarget.Others, _currentHealth);
                 }
             }
-        }        /// <summary>
+        }
+
+        /// <summary>
         /// 重生玩家
         /// </summary>
         public void Respawn()
@@ -734,7 +748,7 @@ namespace DWHITE
             _currentHealth = _maxHealth;
             _isAlive = true;
             OnHealthChanged?.Invoke(_currentHealth, _maxHealth);
-            
+
             if (photonView.IsMine)
             {
                 photonView.RPC("RPC_HealthChanged", RpcTarget.Others, _currentHealth);

@@ -35,6 +35,7 @@ namespace DWHITE
 
         [Header("引用")]
         [SerializeField] private GameObject _playerCamera;
+        [SerializeField] private GameObject _gameUI;
         [SerializeField] private List<GameObject> _localCullingObjects;
         
         #endregion
@@ -185,6 +186,7 @@ namespace DWHITE
             // 启用输入和摄像机
             if (_playerInput != null) _playerInput.enabled = true;
             if (_playerView != null) _playerView.enabled = true;
+            if (_gameUI != null) _gameUI.SetActive(true); // 本地玩家需要UI
             
             // 启用物理模拟
             if (_rigidbody != null)
@@ -217,6 +219,7 @@ namespace DWHITE
             // 禁用输入和摄像机
             if (_playerInput != null) _playerInput.enabled = false;
             if (_playerView != null) _playerView.enabled = false;
+            if (_gameUI != null) _gameUI.SetActive(false); // 远程玩家不需要本地UI
 
             // 禁用不需要的组件
             if (_playerMotor != null)

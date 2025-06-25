@@ -271,8 +271,7 @@ namespace DWHITE.Weapons
         #endregion
         
         #region 碰撞处理实现
-        
-        /// <summary>
+          /// <summary>
         /// 处理命中
         /// </summary>
         protected override bool ProcessHit(RaycastHit hit)
@@ -286,8 +285,8 @@ namespace DWHITE.Weapons
             Vector3 hitPoint = hit.point != Vector3.zero ? hit.point : transform.position;
             Vector3 hitNormal = hit.normal != Vector3.zero ? hit.normal : -transform.forward;
             
-            // 处理伤害
-            bool shouldDestroy = ProcessDamage(hitCollider, hitPoint);
+            // 处理伤害 - 使用基类的统一伤害处理方法
+            bool shouldDestroy = ProcessDamage(hitCollider, hitPoint, hitNormal);
             
             // 播放撞击效果
             PlayImpactEffect(hitPoint, hitNormal);
@@ -305,6 +304,7 @@ namespace DWHITE.Weapons
                     Explode();
                 }
             }
+            
             // 触发命中事件（在ProjectileBase中处理）
             TriggerProjectileHit(hit); // 由基类处理事件触发
             
@@ -316,11 +316,10 @@ namespace DWHITE.Weapons
             
             return shouldDestroy;
         }
-        
-        /// <summary>
-        /// 处理伤害
+          /// <summary>
+        /// 处理伤害 - 重构为使用基类的统一伤害处理
         /// </summary>
-        private bool ProcessDamage(Collider hitCollider, Vector3 hitPoint)
+        private bool ProcessDamage(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
         {
             if (!_damageOnTouch) return true;
             
@@ -328,8 +327,14 @@ namespace DWHITE.Weapons
             bool isDamageable = IsTargetDamageable(hitCollider);
             if (!isDamageable) return true;
             
-            // 尝试造成伤害
-            bool damageDealt = DealDamage(hitCollider, hitPoint);
+            // 检查是否可以造成伤害
+            if (!CanDamageTarget(hitCollider)) return true;
+            
+            // 检查爆头
+            bool isHeadshot = IsHeadshot(hitCollider, hitPoint);
+            
+            // 使用基类的统一伤害处理方法
+            bool damageDealt = ApplyDamageToTarget(hitCollider, hitPoint, hitNormal, isHeadshot);
             
             // 处理穿透
             if (_penetrateTargets && damageDealt)
@@ -366,36 +371,7 @@ namespace DWHITE.Weapons
             }
             
             return true;
-        }
-
-        /// <summary>
-        /// 造成伤害 - 使用适配器统一处理接口差异
-        /// </summary>
-        private bool DealDamage(Collider target, Vector3 hitPoint)
-        {
-            // 使用适配器统一处理不同的IDamageable接口
-            bool damageApplied = DWHITE.Weapons.DamageableAdapter.ApplyDamage(
-                target,
-                _damage,
-                hitPoint,
-                Velocity.normalized,
-                _sourcePlayer,
-                _sourceWeapon,
-                this
-            );
-
-            if (damageApplied && _showDebugInfo)
-            {
-                Debug.Log($"[标准投射物] 对 {target.name} 造成 {_damage} 点伤害");
-            }
-            else if (_showDebugInfo)
-            {
-                Debug.Log($"[标准投射物] {target.name} 不是可伤害目标或已死亡");
-            }
-
-            return damageApplied;
-        }
-
+        }        
         #endregion
 
         #region 爆炸系统
