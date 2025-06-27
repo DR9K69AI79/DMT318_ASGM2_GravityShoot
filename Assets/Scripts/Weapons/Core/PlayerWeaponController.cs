@@ -408,7 +408,24 @@ namespace DWHITE.Weapons
             if (_availableWeapons.Count == 0)
             {
                 WeaponBase[] childWeapons = GetComponentsInChildren<WeaponBase>(true);
-                _availableWeapons.AddRange(childWeapons);
+                foreach (var weapon in childWeapons)
+                {
+                    if (!_availableWeapons.Contains(weapon))
+                        _availableWeapons.Add(weapon);
+                }
+            }
+
+            // 移除空引用
+            _availableWeapons.RemoveAll(w => w == null);
+
+            // 设置父对象
+            if (_weaponContainer != null)
+            {
+                foreach (var weapon in _availableWeapons)
+                {
+                    if (weapon.transform.parent != _weaponContainer)
+                        weapon.transform.SetParent(_weaponContainer, false);
+                }
             }
             
             // 初始化所有武器为未装备状态
