@@ -155,7 +155,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8860042682093643674}
   - component: {fileID: 2685186282248716120}
-  - component: {fileID: 6860149642421991692}
+  - component: {fileID: 1635748687404415744}
   m_Layer: 0
   m_Name: NormalPistol
   m_TagString: Untagged
@@ -197,8 +197,6 @@ MonoBehaviour:
   _muzzlePoint: {fileID: 9141745295622582756}
   _muzzleFxPoint: {fileID: 8544927577843464169}
   _showDebugInfo: 1
-  _ProjectilePrefab: {fileID: 2416525086415560961, guid: 5e34540942e0cf3479fe6da5f4db383b,
-    type: 3}
   _inheritPlayerVelocity: 0
   _inheritVelocityFactor: 0.8
   _spawnOffset: {x: 0, y: 0, z: 0}
@@ -229,7 +227,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   _maxNetworkProjectilesPerPlayer: 20
   _projectileSpamCheckInterval: 0.1
---- !u!114 &6860149642421991692
+--- !u!114 &1635748687404415744
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

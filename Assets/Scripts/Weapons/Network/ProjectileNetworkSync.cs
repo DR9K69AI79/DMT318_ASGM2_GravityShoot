@@ -6,94 +6,46 @@ using DWHITE;
 namespace DWHITE.Weapons.Network
 {
     /// <summary>
-    /// 投射物网络同步组件
-    /// 处理投射物的网络同步和生命周期管理
+    /// 投射物网络同步组件 - 简化版本
+    /// 只处理网络创建和销毁事件，所有物理运动由本地处理
     /// </summary>
-    public class ProjectileNetworkSync : NetworkSyncBase
+    public class ProjectileNetworkSync : NetworkSyncBase, IPunInstantiateMagicCallback
     {
-        [Header("同步配置")]
-        [SerializeField] private bool _syncPosition = true;
-        [SerializeField] private bool _syncRotation = true;
-        [SerializeField] private bool _syncVelocity = true;
-        [SerializeField] private bool _useInterpolation = true;
-        
         [Header("网络设置")]
-        [SerializeField] private float _sendRate = 20f;
-        [SerializeField] private bool _ownershipTransfer = false;
         [SerializeField] private float _networkCullingDistance = 100f;
-        
-        [Header("预测设置")]
-        [SerializeField] private bool _enableClientPrediction = true;
-        [SerializeField] private float _predictionTolerance = 1f;
-        [SerializeField] private float _correctionSpeed = 10f;
+        [SerializeField] private bool _ownershipTransfer = false;
         
         [Header("调试")]
-        [SerializeField] private bool _showDebugInfo = false;
-        [SerializeField] private bool _showNetworkGizmos = false;
+        [SerializeField] private bool _showDebugInfo = true;
         
         // 组件引用
         private ProjectileBase _projectile;
-        private Rigidbody _rigidbody;
         
-        // 网络状态
-        private Vector3 _networkPosition;
-        private Quaternion _networkRotation;
-        private Vector3 _networkVelocity;
-        private float _lastSendTime;
-        
-        // 预测和插值
-        private Vector3 _lastReceivePosition;
-        private Vector3 _predictedPosition;
-        private bool _hasPrediction = false;        // 投射物状态
-        private float _networkLifeTime;
+        // 网络状态（仅用于初始化和销毁）
         private bool _networkIsDestroyed = false;
-        private int _networkBounceCount = 0;
         
         #region Unity 生命周期
         
         private void Awake()
         {
             _projectile = GetComponent<ProjectileBase>();
-            _rigidbody = GetComponent<Rigidbody>();
             
             if (_projectile == null)
             {
                 LogNetwork("警告: 未找到ProjectileBase组件");
             }
-        }        private void Start()
+        }
+        
+        private void Start()
         {
-            // 初始化网络状态
-            _networkPosition = transform.position;
-            _networkRotation = transform.rotation;
-            _networkVelocity = _rigidbody ? _rigidbody.velocity : Vector3.zero;
-            
-            // 关键修复：如果不是所有者，设置为运动学模式以避免物理冲突
-            if (!photonView.IsMine && _rigidbody != null)
-            {
-                _rigidbody.isKinematic = true;
-                _rigidbody.useGravity = false; // 禁用Unity重力
-                LogNetwork("非所有者投射物设置为运动学模式，禁用物理计算");
-            }
-            else if (photonView.IsMine && _rigidbody != null)
-            {
-                // 确保所有者的投射物保持物理计算
-                _rigidbody.isKinematic = false;
-                LogNetwork("所有者投射物保持物理计算模式");
-            }
-            
-            LogNetwork($"投射物网络同步已初始化 - 所有者: {photonView.Owner?.NickName}");
+            LogNetwork($"投射物网络同步已初始化（简化模式） - 是否为本地: {photonView.IsMine}");
         }
         
         private void Update()
         {
-            if (!photonView.IsMine)
+            // 简化：只检查销毁条件，不进行位置同步
+            if (photonView.IsMine)
             {
-                // 非所有者：应用网络状态
-                ApplyNetworkState();
-            }
-            else
-            {
-                // 所有者：检查是否需要销毁
                 CheckDestroyConditions();
             }
         }
@@ -105,106 +57,88 @@ namespace DWHITE.Weapons.Network
         
         #endregion
         
-        #region 网络状态应用
+        #region IPunInstantiateMagicCallback 实现
         
-        private void ApplyNetworkState()
+        /// <summary>
+        /// 网络实例化回调 - 用于接收网络创建数据
+        /// </summary>
+        public void OnPhotonInstantiate(PhotonMessageInfo info)
         {
-            if (_networkIsDestroyed)
-            {
-                DestroyProjectile();
-                return;
-            }
-
-            if (_showDebugInfo)
-            {
-                LogNetwork($"应用网络状态 - 网络位置: {_networkPosition}, 当前位置: {transform.position}");
-            }
+            // 接收网络创建数据
+            object[] instantiationData = photonView.InstantiationData;
             
-            // 应用位置同步
-            if (_syncPosition)
+            if (instantiationData != null && instantiationData.Length >= 5) // 简化数据：速度(3) + 伤害(1) + 武器ID(1)
             {
-                ApplyPositionSync();
-            }
-            
-            // 应用旋转同步
-            if (_syncRotation)
-            {
-                if (_useInterpolation)
+                try
                 {
-                    transform.rotation = Quaternion.Lerp(transform.rotation, _networkRotation, Time.deltaTime * _correctionSpeed);
+                    // 解析速度
+                    Vector3 velocity = new Vector3(
+                        (float)instantiationData[0],
+                        (float)instantiationData[1], 
+                        (float)instantiationData[2]
+                    );
+                    
+                    // 解析伤害值
+                    float damage = (float)instantiationData[3];
+                    
+                    // 获取源武器
+                    int sourceWeaponViewID = (int)instantiationData[4];
+                    WeaponBase sourceWeapon = null;
+                    if (sourceWeaponViewID > 0)
+                    {
+                        PhotonView weaponView = PhotonView.Find(sourceWeaponViewID);
+                        if (weaponView != null)
+                        {
+                            sourceWeapon = weaponView.GetComponent<WeaponBase>();
+                        }
+                    }
+                    
+                    // 配置投射物
+                    if (_projectile != null)
+                    {
+                        Vector3 direction = velocity.normalized;
+                        float speed = velocity.magnitude;
+                        
+                        // 检查是否是StandardProjectile，如果是，使用其专门的网络配置方法
+                        var standardProjectile = _projectile as DWHITE.Weapons.StandardProjectile;
+                        if (standardProjectile != null)
+                        {
+                            standardProjectile.ConfigureFromNetworkData(instantiationData);
+                            LogNetwork($"StandardProjectile网络配置完成 - 速度: {velocity}, 伤害: {damage}");
+                        }
+                        else
+                        {
+                            // 对于其他类型的投射物，使用基础Launch方法
+                            _projectile.Launch(direction, speed, sourceWeapon, null);
+                            LogNetwork($"基础投射物网络配置完成 - 速度: {velocity}, 伤害: {damage}");
+                        }
+                    }
                 }
-                else
+                catch (System.Exception e)
                 {
-                    transform.rotation = _networkRotation;
-                }
-            }
-              // 应用速度同步（仅在非运动学模式下）
-            if (_syncVelocity && _rigidbody != null && !_rigidbody.isKinematic)
-            {
-                float velocityDifference = Vector3.Distance(_rigidbody.velocity, _networkVelocity);
-                if (velocityDifference > _predictionTolerance)
-                {
-                    _rigidbody.velocity = Vector3.Lerp(_rigidbody.velocity, _networkVelocity, Time.deltaTime * _correctionSpeed);
-                }
-            }
-        }        private void ApplyPositionSync()
-        {
-            float distance = Vector3.Distance(transform.position, _networkPosition);
-            
-            // 对于运动学投射物，直接应用网络位置以确保同步
-            if (_rigidbody != null && _rigidbody.isKinematic)
-            {
-                // 运动学模式：直接移动到网络位置
-                if (_useInterpolation && distance < _predictionTolerance * 2f)
-                {
-                    // 使用更快的插值速度
-                    transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _correctionSpeed * 2f);
-                }
-                else
-                {
-                    // 直接设置位置
-                    transform.position = _networkPosition;
-                }
-                
-                if (_showDebugInfo && distance > 0.1f)
-                {
-                    LogNetwork($"运动学投射物位置同步 - 距离: {distance:F2}");
+                    Debug.LogError($"[ProjectileNetworkSync] 网络初始化失败: {e.Message}");
                 }
             }
             else
             {
-                // 物理模式：使用预测和校正
-                if (_enableClientPrediction && _hasPrediction)
-                {
-                    ApplyClientPrediction();
-                }
-                else if (_useInterpolation && distance < _predictionTolerance)
-                {
-                    transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _correctionSpeed);
-                }
-                else if (distance > _predictionTolerance)
-                {
-                    transform.position = _networkPosition;
-                    LogNetwork($"物理投射物位置校正 - 距离: {distance:F2}");
-                }
+                LogNetwork("警告: 网络实例化数据不完整或为空");
             }
         }
         
-        private void ApplyClientPrediction()
+        #endregion
+        
+        #region NetworkSyncBase 实现
+        
+        protected override void WriteData(PhotonStream stream)
         {
-            // 基于最后接收位置和速度进行预测
-            float timeSinceReceive = Time.time - _lastSendTime;
-            _predictedPosition = _lastReceivePosition + _networkVelocity * timeSinceReceive;
-            
-            // 应用预测位置
-            Vector3 currentPos = transform.position;
-            Vector3 targetPos = Vector3.Lerp(_networkPosition, _predictedPosition, 0.5f);
-            
-            float predictionError = Vector3.Distance(currentPos, targetPos);
-            if (predictionError > _predictionTolerance)
-            {
-                transform.position = Vector3.Lerp(currentPos, targetPos, Time.deltaTime * _correctionSpeed);
-            }
+            // 简化版本：投射物不需要持续同步数据
+            // 所有运动都由本地物理处理
+        }
+        
+        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
+        {
+            // 简化版本：投射物不需要持续接收数据
+            // 所有运动都由本地物理处理
         }
         
         #endregion
@@ -228,7 +162,9 @@ namespace DWHITE.Weapons.Network
                 RequestDestroy();
                 return;
             }
-        }        public void RequestDestroy()
+        }
+        
+        public void RequestDestroy()
         {
             if (photonView.IsMine && !_networkIsDestroyed)
             {
@@ -280,7 +216,7 @@ namespace DWHITE.Weapons.Network
         {
             if (photonView.IsMine)
             {
-                _networkBounceCount++;                photonView.RPC("OnProjectileBounceRPC", RpcTarget.Others, 
+                photonView.RPC("OnProjectileBounceRPC", RpcTarget.Others, 
                     bouncePoint.x, bouncePoint.y, bouncePoint.z,
                     bounceNormal.x, bounceNormal.y, bounceNormal.z);
             }
@@ -292,8 +228,6 @@ namespace DWHITE.Weapons.Network
         {
             Vector3 bouncePoint = new Vector3(posX, posY, posZ);
             Vector3 bounceNormal = new Vector3(normalX, normalY, normalZ);
-            
-            _networkBounceCount++;
             
             // 通知投射物处理弹跳效果
             if (_projectile != null)
@@ -307,7 +241,8 @@ namespace DWHITE.Weapons.Network
         public void OnProjectileHit(Vector3 hitPoint, Vector3 hitNormal, string targetTag, float damage)
         {
             if (photonView.IsMine)
-            {                photonView.RPC("OnProjectileHitRPC", RpcTarget.Others,
+            {
+                photonView.RPC("OnProjectileHitRPC", RpcTarget.Others,
                     hitPoint.x, hitPoint.y, hitPoint.z,
                     hitNormal.x, hitNormal.y, hitNormal.z,
                     targetTag, damage);
@@ -322,170 +257,38 @@ namespace DWHITE.Weapons.Network
             Vector3 hitPoint = new Vector3(posX, posY, posZ);
             Vector3 hitNormal = new Vector3(normalX, normalY, normalZ);
             
-            // 播放命中特效
+            // 通知投射物处理命中效果
             if (_projectile != null)
             {
                 _projectile.OnNetworkHit(hitPoint, hitNormal, targetTag, damage);
             }
             
-            LogNetwork($"接收到命中事件 - 目标: {targetTag}, 伤害: {damage}");
+            LogNetwork($"接收到命中事件 - 位置: {hitPoint}, 目标: {targetTag}, 伤害: {damage}");
         }
         
         #endregion
         
-        #region NetworkSyncBase 实现
-          protected override void WriteData(PhotonStream stream)
-        {
-            // 位置同步
-            if (_syncPosition)
-            {
-                stream.SendNext(transform.position);
-            }
-            
-            // 旋转同步
-            if (_syncRotation)
-            {
-                stream.SendNext(transform.rotation);
-            }
-            
-            // 速度同步
-            if (_syncVelocity && _rigidbody != null)
-            {
-                stream.SendNext(_rigidbody.velocity);
-            }
-            else
-            {
-                stream.SendNext(Vector3.zero);
-            }
-            
-            // 投射物状态
-            stream.SendNext(_projectile ? _projectile.Lifetime : 0f);
-            stream.SendNext(_networkBounceCount);
-            
-            if (_showDebugInfo)
-            {
-                LogNetwork($"发送网络数据 - 位置: {transform.position}, 速度: {(_rigidbody ? _rigidbody.velocity : Vector3.zero)}");
-            }
-        }        protected override void ReadData(PhotonStream stream, PhotonMessageInfo info)
-        {
-            // 接收位置
-            if (_syncPosition)
-            {
-                _lastReceivePosition = _networkPosition;
-                _networkPosition = (Vector3)stream.ReceiveNext();
-                _hasPrediction = true;
-            }
-            
-            // 接收旋转
-            if (_syncRotation)
-            {
-                _networkRotation = (Quaternion)stream.ReceiveNext();
-            }
-            
-            // 接收速度
-            if (_syncVelocity)
-            {
-                _networkVelocity = (Vector3)stream.ReceiveNext();
-            }
-            
-            // 接收投射物状态
-            _networkLifeTime = (float)stream.ReceiveNext();
-            _networkBounceCount = (int)stream.ReceiveNext();
-            
-            // 记录接收时间
-            _lastSendTime = Time.time;
-            
-            if (_showDebugInfo)
-            {
-                LogNetwork($"接收网络数据 - 位置: {_networkPosition}, 速度: {_networkVelocity}");
-            }
-        }
-
-        #endregion
-        
-        #region 公共接口
-        
-        /// <summary>
-        /// 设置同步选项
-        /// </summary>
-        public void SetSyncOptions(bool position = true, bool rotation = true, bool velocity = true)
-        {
-            _syncPosition = position;
-            _syncRotation = rotation;
-            _syncVelocity = velocity;
-        }
-        
-        /// <summary>
-        /// 设置网络发送频率
-        /// </summary>
-        public void SetSendRate(float rate)
-        {
-            _sendRate = Mathf.Max(1f, rate);
-        }
-        
-        /// <summary>
-        /// 启用/禁用客户端预测
-        /// </summary>
-        public void SetClientPrediction(bool enabled, float tolerance = 1f)
-        {
-            _enableClientPrediction = enabled;
-            _predictionTolerance = tolerance;
-        }
-        
-        /// <summary>
-        /// 强制同步当前状态
-        /// </summary>
-        public void ForceSyncState()
-        {
-            if (photonView.IsMine)
-            {
-                // 强制发送当前状态
-                _lastSendTime = 0f;
-            }
-        }
-        
-        /// <summary>
-        /// 启用调试信息（用于诊断网络同步问题）
-        /// </summary>
-        public void EnableDebugInfo(bool enable = true)
-        {
-            _showDebugInfo = enable;
-            _showNetworkGizmos = enable;
-        }
-        
-        #endregion
-        
-        #region 调试和可视化
-        
-        private void OnDrawGizmos()
-        {
-            if (!_showNetworkGizmos) return;
-            
-            // 绘制网络位置
-            if (!photonView.IsMine)
-            {
-                Gizmos.color = Color.red;
-                Gizmos.DrawWireSphere(_networkPosition, 0.2f);
-                
-                // 绘制预测位置
-                if (_hasPrediction)
-                {
-                    Gizmos.color = Color.yellow;
-                    Gizmos.DrawWireSphere(_predictedPosition, 0.15f);
-                }
-                
-                // 绘制连接线
-                Gizmos.color = Color.white;
-                Gizmos.DrawLine(transform.position, _networkPosition);
-            }
-        }
+        #region 调试和日志
         
         private void LogNetwork(string message)
         {
             if (_showDebugInfo)
             {
-                Debug.Log($"[投射物网络同步] {message}");
+                Debug.Log($"[ProjectileNetworkSync] {message}");
             }
+        }
+        
+        #endregion
+        
+        #region 公共接口
+        
+        /// <summary>
+        /// 启用调试信息（供外部调用）
+        /// </summary>
+        public void EnableDebugInfo(bool enable)
+        {
+            _showDebugInfo = enable;
+            LogNetwork($"[ProjectileNetworkSync]调试信息已{(enable ? "启用" : "禁用")}");
         }
         
         #endregion

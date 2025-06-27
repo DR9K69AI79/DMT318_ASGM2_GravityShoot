@@ -248,7 +248,7 @@ namespace DWHITE.Weapons.UI
             UpdateAmmoDisplay();
         }
         
-        private void OnProjectileHit(ProjectileBase projectile, RaycastHit hit)
+        private void OnProjectileHit(ProjectileBase projectile, ProjectileHitInfo hitInfo)
         {
             // 显示命中标记
             ShowHitMarker();

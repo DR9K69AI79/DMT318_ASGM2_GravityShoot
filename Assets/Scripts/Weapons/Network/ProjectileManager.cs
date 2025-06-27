@@ -43,7 +43,7 @@ namespace DWHITE.Weapons.Network
         [SerializeField] private float _spamProtectionInterval = 0.05f; // 防刷保护
         
         [Header("调试")]
-        [SerializeField] private bool _showDebugInfo = false;
+        [SerializeField] private bool _showDebugInfo = true;
         
         #endregion
           #region 状态管理
@@ -86,7 +86,7 @@ namespace DWHITE.Weapons.Network
         #region 投射物工厂方法
         
         /// <summary>
-        /// 生成投射物（工厂方法）
+        /// 生成投射物（简化版本）- 只同步创建事件，运动完全本地处理
         /// </summary>
         /// <param name="prefab">投射物预制体</param>
         /// <param name="position">生成位置</param>
@@ -114,83 +114,49 @@ namespace DWHITE.Weapons.Network
                 Debug.LogError("[ProjectileManager] 投射物预制体为空");
                 return null;
             }
-              GameObject projectileObj = null;
+
+            GameObject projectileObj = null;
             
-            // 修复网络逻辑：检查武器的所有者而不是ProjectileManager的所有者
-            bool shouldUseNetworking = useNetworking && PhotonNetwork.IsConnected;
+            // 简化网络逻辑：只有武器拥有者才创建投射物
+            bool shouldCreateLocally = !useNetworking || !PhotonNetwork.IsConnected;
             bool isWeaponOwner = sourceWeapon != null && sourceWeapon.photonView != null && sourceWeapon.photonView.IsMine;
             
-            if (shouldUseNetworking && isWeaponOwner)
+            if (useNetworking && PhotonNetwork.IsConnected)
             {
-                // 网络同步投射物 - 由武器所有者创建
-                object[] initData = new object[] 
-                { 
-                    velocity.x, velocity.y, velocity.z,
-                    damage,
-                    sourceWeapon?.photonView?.ViewID ?? -1 // 武器来源ID
-                };
-                
-                // 如果有自定义数据，合并到初始化数据中
-                if (customData != null && customData.Length > 0)
+                if (isWeaponOwner)
                 {
-                    object[] combinedData = new object[initData.Length + customData.Length];
-                    initData.CopyTo(combinedData, 0);
-                    customData.CopyTo(combinedData, initData.Length);
-                    initData = combinedData;
+                    // 网络创建：只传递必要的初始化数据
+                    object[] initData = CreateSimpleNetworkData(velocity, damage, sourceWeapon);
+                    
+                    projectileObj = PhotonNetwork.Instantiate(
+                        prefab.name, 
+                        position, 
+                        Quaternion.LookRotation(direction),
+                        0,
+                        initData
+                    );
+                    
+                    LogActivity($"网络投射物创建成功: {projectileObj.name} (所有者: {sourceWeapon.photonView.Owner?.NickName})");
+                    
+                    // 网络创建的投射物会通过 IPunInstantiateMagicCallback 自动配置，不需要手动配置
                 }
-                
-                projectileObj = PhotonNetwork.Instantiate(
-                    prefab.name, 
-                    position, 
-                    Quaternion.LookRotation(direction),
-                    0,
-                    initData
-                );
-                
-                if (_showDebugInfo)
+                else
                 {
-                    LogActivity($"网络投射物创建成功: {projectileObj.name} (武器所有者: {sourceWeapon.photonView.Owner?.NickName})");
+                    // 非拥有者：不创建，等待网络同步
+                    LogActivity($"非武器拥有者跳过投射物创建，等待网络同步");
+                    return null;
                 }
-            }
-            else if (shouldUseNetworking && !isWeaponOwner)
-            {
-                // 非武器所有者：不创建投射物，等待网络同步
-                if (_showDebugInfo)
-                {
-                    LogActivity($"非武器所有者跳过投射物创建，等待网络同步");
-                }
-                return null;
             }
             else
             {
-                // 本地投射物
-                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));                // 手动配置投射物参数
-                ProjectileBase projectileBase = projectileObj.GetComponent<ProjectileBase>();
-                if (projectileBase != null)
-                {
-                    // 尝试从源武器获取ProjectileSettings
-                    if (sourceWeapon != null && sourceWeapon.WeaponData != null && sourceWeapon.WeaponData.UseProjectileSettings)
-                    {
-                        var settings = sourceWeapon.WeaponData.ProjectileSettings;
-                        if (settings != null)
-                        {
-                            projectileBase.Configure(settings, velocity, direction, sourceWeapon, sourcePlayer);
-                        }
-                        else
-                        {
-                            projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
-                        }
-                    }
-                    else
-                    {
-                        // 回退到Launch方法（向后兼容旧武器）
-                        projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
-                    }
-                }
+                // 本地创建（单机模式或网络未连接）
+                projectileObj = Instantiate(prefab, position, Quaternion.LookRotation(direction));
+                LogActivity($"本地投射物创建成功: {projectileObj.name}");
                 
-                if (_showDebugInfo)
+                // 只有本地创建的投射物需要手动配置
+                if (projectileObj != null)
                 {
-                    LogActivity($"本地投射物创建成功: {projectileObj.name}");
+                    ConfigureProjectile(projectileObj, velocity, direction, damage, sourceWeapon, sourcePlayer);
                 }
             }
             
@@ -271,8 +237,9 @@ namespace DWHITE.Weapons.Network
             
             if (shouldUseNetworking && isWeaponOwner)
             {
-                // 网络同步投射物 - 传递完整的ProjectileSettings数据
-                object[] initData = CreateProjectileSettingsNetworkData(velocity, projectileSettings, sourceWeapon);
+                // 网络同步投射物 - 使用简化数据格式（与基础方法保持一致）
+                float damage = projectileSettings.Damage;
+                object[] initData = CreateSimpleNetworkData(velocity, damage, sourceWeapon);
                 
                 projectileObj = PhotonNetwork.Instantiate(
                     prefab.name, 
@@ -286,6 +253,8 @@ namespace DWHITE.Weapons.Network
                 {
                     LogActivity($"网络投射物创建成功 (ProjectileSettings): {projectileObj.name} (武器所有者: {sourceWeapon.photonView.Owner?.NickName})");
                 }
+                
+                // 网络创建的投射物会通过 IPunInstantiateMagicCallback 自动配置，不需要手动配置
             }
             else if (shouldUseNetworking && !isWeaponOwner)
             {
@@ -305,21 +274,22 @@ namespace DWHITE.Weapons.Network
                 {
                     LogActivity($"本地投射物创建成功 (ProjectileSettings): {projectileObj.name}");
                 }
-            }
-            
-            if (projectileObj != null)
-            {
-                // 配置投射物
-                ProjectileBase projectile = projectileObj.GetComponent<ProjectileBase>();
-                if (projectile != null)
+                
+                // 只有本地创建的投射物需要手动配置
+                if (projectileObj != null)
                 {
-                    ConfigureProjectileWithSettings(projectile, velocity, direction, projectileSettings, sourceWeapon, sourcePlayer);
-                }
-                  // 注册到管理器
-                ProjectileBase projectileComponent = projectileObj.GetComponent<ProjectileBase>();
-                if (projectileComponent != null)
-                {
-                    RegisterProjectile(projectileComponent);
+                    ProjectileBase projectile = projectileObj.GetComponent<ProjectileBase>();
+                    if (projectile != null)
+                    {
+                        ConfigureProjectileWithSettings(projectile, velocity, direction, projectileSettings, sourceWeapon, sourcePlayer);
+                    }
+                    
+                    // 注册到管理器
+                    ProjectileBase projectileComponent = projectileObj.GetComponent<ProjectileBase>();
+                    if (projectileComponent != null)
+                    {
+                        RegisterProjectile(projectileComponent);
+                    }
                 }
             }
             
@@ -355,6 +325,56 @@ namespace DWHITE.Weapons.Network
             return basicData;
         }
           /// <summary>
+        /// 创建简化的网络数据（只包含必要信息）
+        /// </summary>
+        private object[] CreateSimpleNetworkData(Vector3 velocity, float damage, WeaponBase sourceWeapon)
+        {
+            return new object[]
+            {
+                // 速度（3个元素）
+                velocity.x, velocity.y, velocity.z,
+                // 伤害值
+                damage,
+                // 来源武器ID
+                sourceWeapon?.photonView?.ViewID ?? -1
+            };
+        }
+
+        /// <summary>
+        /// 配置投射物参数
+        /// </summary>
+        private void ConfigureProjectile(GameObject projectileObj, Vector3 velocity, Vector3 direction, float damage, WeaponBase sourceWeapon, GameObject sourcePlayer)
+        {
+            ProjectileBase projectileBase = projectileObj.GetComponent<ProjectileBase>();
+            if (projectileBase != null)
+            {
+                // 尝试从源武器获取ProjectileSettings
+                if (sourceWeapon != null && sourceWeapon.WeaponData != null && sourceWeapon.WeaponData.UseProjectileSettings)
+                {
+                    var settings = sourceWeapon.WeaponData.ProjectileSettings;
+                    if (settings != null)
+                    {
+                        projectileBase.Configure(settings, velocity, direction, sourceWeapon, sourcePlayer);
+                    }
+                    else
+                    {
+                        projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                    }
+                }
+                else
+                {
+                    // 回退到Launch方法（向后兼容旧武器）
+                    projectileBase.Launch(direction, velocity.magnitude, sourceWeapon, sourcePlayer);
+                }
+
+                // 注册到管理器
+                RegisterProjectile(projectileBase);
+            }
+        }
+
+        // ...existing code...
+        
+        /// <summary>
         /// 使用ProjectileSettings配置投射物
         /// </summary>
         private void ConfigureProjectileWithSettings(

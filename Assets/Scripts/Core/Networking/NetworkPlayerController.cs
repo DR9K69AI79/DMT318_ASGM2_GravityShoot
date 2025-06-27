@@ -19,11 +19,8 @@ namespace DWHITE
         [SerializeField] private float _interpolationRate = 15f;
         [SerializeField] private float _snapThreshold = 2f;
         
-        [Header("预测和校正")]
-        [SerializeField] private bool _enableClientPrediction = true;
-        [SerializeField] private bool _enableLagCompensation = true;
-        [SerializeField] private float _maxPredictionTime = 0.5f;
-        [SerializeField] private float _reconciliationThreshold = 0.3f;
+        [Header("平滑插值")]
+        [SerializeField] private bool _enableSmoothing = true;
         
         [Header("重力同步")]
         [SerializeField] private bool _syncGravityDirection = true;
@@ -32,6 +29,7 @@ namespace DWHITE
         [Header("调试")]
         [SerializeField] private bool _showNetworkDebug = false;
         [SerializeField] private bool _showPredictionGizmos = false;
+        [SerializeField] private bool _showSyncStats = false;
 
         [Header("引用")]
         [SerializeField] private GameObject _playerCamera;
@@ -87,7 +85,7 @@ namespace DWHITE
         // 远程玩家状态缓存
         private PlayerStateData _remotePlayerState;
         
-        // 预测和插值
+        // 插值
         private Vector3 _networkPosition;
         private Quaternion _networkRotation;
         private Vector3 _networkVelocity;
@@ -99,17 +97,12 @@ namespace DWHITE
         private float _lastReceiveTime;
         private float _sendInterval;
         
-        // 客户端预测
-        private System.Collections.Generic.Queue<NetworkPlayerState> _stateHistory;
-        private const int MAX_STATE_HISTORY = 64;
-        
         #endregion
         
         #region Properties
         
         public bool IsLocalPlayer => photonView.IsMine;
         public float NetworkLatency => (float)(PhotonNetwork.Time - _lastReceiveTime);
-        public Vector3 PredictedPosition { get; private set; }
         public bool IsGrounded => _networkIsGrounded;
         
         #endregion
@@ -123,9 +116,6 @@ namespace DWHITE
             _playerView = GetComponentInChildren<PlayerView>();
             _rigidbody = GetComponent<Rigidbody>();
             _playerStatusManager = GetComponent<PlayerStatusManager>();
-            
-            // 初始化状态历史
-            _stateHistory = new System.Collections.Generic.Queue<NetworkPlayerState>();
             
             // 计算发送间隔
             _sendInterval = 1f / _sendRate;
@@ -171,6 +161,8 @@ namespace DWHITE
             if (!IsLocalPlayer)
             {
                 InterpolateRemotePlayer();
+                SyncRemotePlayerPhysics();
+                LogSyncStats();
             }
         }
         
@@ -221,11 +213,22 @@ namespace DWHITE
             if (_playerView != null) _playerView.enabled = false;
             if (_gameUI != null) _gameUI.SetActive(false); // 远程玩家不需要本地UI
 
-            // 禁用不需要的组件
+            // 禁用不需要的组件，但保持物理组件
             if (_playerMotor != null)
             {
                 _playerMotor.enabled = false; // 远程玩家不需要本地物理计算
             }
+            
+            // 确保远程玩家的Rigidbody设置正确
+            if (_rigidbody != null)
+            {
+                _rigidbody.isKinematic = true; // 远程玩家使用Kinematic模式
+                _rigidbody.useGravity = false; // 禁用重力
+                _rigidbody.velocity = Vector3.zero;
+                _rigidbody.angularVelocity = Vector3.zero;
+            }
+            
+            LogNetworkDebug("远程玩家组件设置完成 - Rigidbody设为Kinematic模式");
         }
         
         /// <summary>
@@ -286,12 +289,6 @@ namespace DWHITE
                 rightAxis = localPlayerState.rightAxis
             };
 
-            // 客户端预测
-            if (_enableClientPrediction)
-            {
-                RecordStateHistory(currentState);
-            }
-
             // 定期发送状态
             if (Time.time - _lastSendTime >= _sendInterval)
             {
@@ -300,70 +297,6 @@ namespace DWHITE
 
                 LogNetworkDebug($"发送状态 - 位置: {currentState.position}, 速度: {currentState.velocity}, Sprint: {currentState.isSprinting}");
             }
-        }
-        
-        /// <summary>
-        /// 记录状态历史（客户端预测）
-        /// </summary>
-        private void RecordStateHistory(NetworkPlayerState state)
-        {
-            _stateHistory.Enqueue(state);
-            
-            while (_stateHistory.Count > MAX_STATE_HISTORY)
-            {
-                _stateHistory.Dequeue();
-            }
-        }
-        
-        /// <summary>
-        /// 服务器校正（客户端预测）
-        /// </summary>
-        public void ServerReconciliation(Vector3 serverPosition, float serverTime)
-        {
-            if (!IsLocalPlayer || !_enableClientPrediction) return;
-            
-            // 查找对应时间戳的预测状态
-            NetworkPlayerState? matchingState = FindStateByTimestamp(serverTime);
-            
-            if (matchingState.HasValue)
-            {
-                float positionError = Vector3.Distance(matchingState.Value.position, serverPosition);
-                
-                if (positionError > _reconciliationThreshold)
-                {
-                    LogNetworkDebug($"服务器校正 - 误差: {positionError}m");
-                    
-                    // 修正位置并重新模拟
-                    transform.position = serverPosition;
-                    ReplayFromState(matchingState.Value);
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 根据时间戳查找状态
-        /// </summary>
-        private NetworkPlayerState? FindStateByTimestamp(float timestamp)
-        {
-            foreach (var state in _stateHistory)
-            {
-                if (Mathf.Abs(state.timestamp - timestamp) < 0.1f)
-                {
-                    return state;
-                }
-            }
-            return null;
-        }
-        
-        /// <summary>
-        /// 从指定状态重新模拟
-        /// </summary>
-        private void ReplayFromState(NetworkPlayerState fromState)
-        {
-            // 这里可以实现更复杂的状态回放逻辑
-            // 目前简单地设置位置和速度
-            transform.position = fromState.position;
-            _rigidbody.velocity = fromState.velocity;
         }
         
         #endregion
@@ -394,25 +327,56 @@ namespace DWHITE
                 // 距离过大，直接瞬移
                 transform.position = _networkPosition;
                 transform.rotation = _networkRotation;
+                _teleportCount++;
                 LogNetworkDebug($"位置瞬移 - 距离: {distance}m");
+                
+                // 瞬移时同时设置Rigidbody位置，确保物理碰撞箱同步
+                if (_rigidbody != null && !_rigidbody.isKinematic)
+                {
+                    _rigidbody.position = _networkPosition;
+                    _rigidbody.rotation = _networkRotation;
+                    // 清除速度避免抖动
+                    _rigidbody.velocity = Vector3.zero;
+                    _rigidbody.angularVelocity = Vector3.zero;
+                }
+            }
+            else if (_enableSmoothing)
+            {
+                // 平滑插值 - 使用更稳定的插值方式
+                float lerpSpeed = Time.deltaTime * _interpolationRate;
+                
+                // 位置插值
+                Vector3 targetPosition = Vector3.Lerp(transform.position, _networkPosition, lerpSpeed);
+                transform.position = targetPosition;
+                
+                // 旋转插值
+                Quaternion targetRotation = Quaternion.Lerp(transform.rotation, _networkRotation, lerpSpeed);
+                transform.rotation = targetRotation;
+                
+                // 同步更新Rigidbody位置
+                if (_rigidbody != null && !_rigidbody.isKinematic)
+                {
+                    _rigidbody.MovePosition(targetPosition);
+                    _rigidbody.MoveRotation(targetRotation);
+                }
+                
+                _smoothUpdateCount++;
             }
             else
             {
-                // 平滑插值
-                transform.position = Vector3.Lerp(transform.position, _networkPosition, Time.deltaTime * _interpolationRate);
-                transform.rotation = Quaternion.Lerp(transform.rotation, _networkRotation, Time.deltaTime * _interpolationRate);
+                // 直接设置位置
+                transform.position = _networkPosition;
+                transform.rotation = _networkRotation;
+                
+                // 同步Rigidbody
+                if (_rigidbody != null && !_rigidbody.isKinematic)
+                {
+                    _rigidbody.position = _networkPosition;
+                    _rigidbody.rotation = _networkRotation;
+                }
             }
             
-            // 应用预测位置（延迟补偿）
-            if (_enableLagCompensation)
-            {
-                float lagTime = NetworkLatency;
-                PredictedPosition = _networkPosition + _networkVelocity * lagTime;
-            }
-            else
-            {
-                PredictedPosition = _networkPosition;
-            }
+            DiagnoseSyncIssues();
         }
         
         /// <summary>
@@ -420,20 +384,12 @@ namespace DWHITE
         /// </summary>
         private void ApplyNetworkState()
         {
-            // 计算时间差进行延迟补偿
-            float timeDifference = (float)(PhotonNetwork.Time - _lastReceiveTime);
-            
-            // 预测位置
+            // 直接应用网络位置，不做延迟补偿
             _networkPosition = _targetState.position;
             _networkRotation = _targetState.rotation;
             _networkVelocity = _targetState.velocity;
             _networkGravityDirection = _targetState.gravityDirection;
             _networkIsGrounded = _targetState.isGrounded;
-            
-            if (_enableLagCompensation && timeDifference > 0)
-            {
-                _networkPosition += _networkVelocity * timeDifference;
-            }
         }
           /// <summary>
         /// 应用远程玩家的PlayerState数据
@@ -465,6 +421,27 @@ namespace DWHITE
             _remotePlayerState = remoteStateData;
             
             LogNetworkDebug($"应用远程PlayerState - Sprint: {remoteStateData.isSprinting}, Jump: {remoteStateData.isJumping}, Speed: {remoteStateData.speed:F2}");
+        }
+        
+        /// <summary>
+        /// 强制同步远程玩家的物理状态
+        /// </summary>
+        private void SyncRemotePlayerPhysics()
+        {
+            if (IsLocalPlayer || _rigidbody == null) return;
+            
+            // 确保Transform和Rigidbody位置一致
+            if (Vector3.Distance(_rigidbody.position, transform.position) > 0.01f)
+            {
+                _rigidbody.position = transform.position;
+                LogNetworkDebug("修正Rigidbody位置不一致问题");
+            }
+            
+            if (Quaternion.Angle(_rigidbody.rotation, transform.rotation) > 1f)
+            {
+                _rigidbody.rotation = transform.rotation;
+                LogNetworkDebug("修正Rigidbody旋转不一致问题");
+            }
         }
         
         #endregion
@@ -604,7 +581,18 @@ namespace DWHITE
         {
             if (_showNetworkDebug)
             {
-                //Debug.Log($"[NetworkPlayerController] {Owner?.NickName ?? "Unknown"}: {message}");
+                Debug.Log($"[NetworkPlayerController][{(IsLocalPlayer ? "Local" : "Remote")}] {message}");
+            }
+        }
+        
+        private void LogSyncStats()
+        {
+            if (_showSyncStats && !IsLocalPlayer)
+            {
+                float positionError = Vector3.Distance(transform.position, _networkPosition);
+                float rotationError = Quaternion.Angle(transform.rotation, _networkRotation);
+                
+                Debug.Log($"[SyncStats] PosError: {positionError:F3}m, RotError: {rotationError:F1}°, Latency: {NetworkLatency*1000:F1}ms");
             }
         }
         
@@ -620,14 +608,6 @@ namespace DWHITE
             Gizmos.color = IsLocalPlayer ? Color.green : Color.red;
             Gizmos.DrawWireSphere(transform.position, 0.5f);
             
-            // 绘制预测位置
-            if (_enableLagCompensation && PredictedPosition != Vector3.zero)
-            {
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawWireSphere(PredictedPosition, 0.3f);
-                Gizmos.DrawLine(transform.position, PredictedPosition);
-            }
-            
             // 绘制速度向量
             if (_networkVelocity.magnitude > 0.1f)
             {
@@ -641,6 +621,59 @@ namespace DWHITE
                 Gizmos.color = Color.magenta;
                 Gizmos.DrawRay(transform.position, _networkGravityDirection * 2f);
             }
+        }
+        
+        #endregion
+        
+        #region Synchronization Debugging
+        
+        [Header("同步问题诊断")]
+        [SerializeField] private bool _enableSyncDiagnostics = false;
+        [SerializeField] private float _positionErrorThreshold = 0.1f;
+        [SerializeField] private float _velocityDifferenceThreshold = 1f;
+        
+        private Vector3 _lastNetworkPosition;
+        private float _lastDiagnosticTime;
+        private int _teleportCount;
+        private int _smoothUpdateCount;
+        
+        /// <summary>
+        /// 诊断网络同步问题
+        /// </summary>
+        private void DiagnoseSyncIssues()
+        {
+            if (!_enableSyncDiagnostics || IsLocalPlayer) return;
+            
+            float currentTime = Time.time;
+            if (currentTime - _lastDiagnosticTime < 1f) return; // 每秒检查一次
+            
+            _lastDiagnosticTime = currentTime;
+            
+            // 检查位置误差
+            float posError = Vector3.Distance(transform.position, _networkPosition);
+            if (posError > _positionErrorThreshold)
+            {
+                Debug.LogWarning($"[同步诊断] 位置误差过大: {posError:F3}m " +
+                    $"本地位置: {transform.position} 网络位置: {_networkPosition}");
+            }
+            
+            // 检查速度变化
+            float velocityChange = Vector3.Distance(_lastNetworkPosition, _networkPosition) / Time.fixedDeltaTime;
+            if (velocityChange > _velocityDifferenceThreshold)
+            {
+                Debug.LogWarning($"[同步诊断] 速度变化过大: {velocityChange:F2}m/s " +
+                    $"可能导致抖动");
+            }
+            
+            // 记录瞬移和平滑更新的比例
+            float teleportRatio = _teleportCount / (float)(_teleportCount + _smoothUpdateCount + 1);
+            if (teleportRatio > 0.1f) // 超过10%的瞬移
+            {
+                Debug.LogWarning($"[同步诊断] 瞬移比例过高: {teleportRatio:P1} " +
+                    $"瞬移次数: {_teleportCount}, 平滑次数: {_smoothUpdateCount}");
+            }
+            
+            _lastNetworkPosition = _networkPosition;
         }
         
         #endregion

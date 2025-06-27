@@ -115,10 +115,10 @@ namespace DWHITE.Weapons
             _bounceEnergyLoss = energyLoss;
         }
         
-        protected override bool ProcessHit(RaycastHit hit)
+        protected override bool ProcessHit(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
         {
             // 弹跳投射物有更强的穿透倾向
-            bool shouldDestroy = base.ProcessHit(hit);
+            bool shouldDestroy = base.ProcessHit(hitCollider, hitPoint, hitNormal);
             
             // 如果还有弹跳次数，优先尝试弹跳而不是造成伤害
             if (CanBounce && !shouldDestroy)

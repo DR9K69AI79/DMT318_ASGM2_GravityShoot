@@ -80,9 +80,6 @@ namespace DWHITE
                 ConfigureCamera();
             }
             
-            // 确保有 NetworkManager
-            EnsureNetworkManager();
-            
             Debug.Log("网络测试场景设置完成！");
             LogInstructions();
         }
@@ -228,21 +225,7 @@ namespace DWHITE
                 Debug.Log("配置了主相机位置");
             }
         }
-        
-        private void EnsureNetworkManager()
-        {
-            NetworkManager networkManager = FindObjectOfType<NetworkManager>();
-            if (networkManager == null)
-            {
-                GameObject nmObj = new GameObject("NetworkManager");
-                nmObj.AddComponent<NetworkManager>();
-                Debug.Log("创建了 NetworkManager");
-            }
-            else
-            {
-                Debug.Log("发现已存在的 NetworkManager");
-            }
-        }
+
           private void LogInstructions()
         {
             Debug.Log("=== 网络测试场景使用说明 ===");

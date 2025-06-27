@@ -26,7 +26,8 @@ namespace DWHITE
         [Header("调试选项")]
         [SerializeField] private bool _showConnectionStatus = true;
         [SerializeField] private bool _showRoomInfo = true;
-        [SerializeField] private bool _enableVerboseLogging = true;        [SerializeField] private KeyCode _quickJoinKey = KeyCode.F1;
+        [SerializeField] private bool _enableVerboseLogging = true;
+        [SerializeField] private KeyCode _quickJoinKey = KeyCode.F1;
         [SerializeField] private KeyCode _quickLeaveKey = KeyCode.F2;
         [SerializeField] private KeyCode _spawnPlayerKey = KeyCode.F3;
         [SerializeField] private KeyCode _fixJumpKey = KeyCode.F4; // 新增：修复跳跃功能快捷键

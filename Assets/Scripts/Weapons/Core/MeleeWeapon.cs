@@ -161,20 +161,20 @@ namespace DWHITE.Weapons
             // 计算伤害（包括连击加成）
             float damage = CalculateMeleeDamage();
             
-            // 使用DamageableAdapter统一处理伤害
+            // 直接调用IDamageable接口处理伤害
             Vector3 hitPoint = target.ClosestPoint(attackOrigin);
-            bool damageApplied = DamageableAdapter.ApplyDamage(
-                target,
-                damage,
-                hitPoint,
-                targetDirection,
-                gameObject, // 使用武器GameObject作为来源
-                this,
-                null // 近战武器没有投射物
-            );
             
-            if (damageApplied)
+            // 查找IDamageable组件
+            DWHITE.IDamageable damageable = target.GetComponent<DWHITE.IDamageable>();
+            if (damageable == null)
             {
+                damageable = target.GetComponentInParent<DWHITE.IDamageable>();
+            }
+            
+            if (damageable != null && damageable.IsAlive)
+            {
+                damageable.TakeDamage(damage, hitPoint, targetDirection);
+                
                 // 播放命中音效
                 PlayHitSound();
                 
@@ -182,7 +182,8 @@ namespace DWHITE.Weapons
                 {
                     Debug.Log($"[近战武器] 对 {target.name} 造成 {damage} 伤害 (连击: {_currentComboCount})");
                 }
-            }            else if (_showDebugInfo)
+            }
+            else if (_showDebugInfo)
             {
                 Debug.Log($"[近战武器] {target.name} 不是可伤害目标");
             }

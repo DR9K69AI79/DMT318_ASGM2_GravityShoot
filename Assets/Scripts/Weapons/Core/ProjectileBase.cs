@@ -6,6 +6,29 @@ using Debug = UnityEngine.Debug;
 namespace DWHITE.Weapons
 {
     /// <summary>
+    /// 投射物命中信息结构体
+    /// 用于替代RaycastHit，避免反射设置的复杂性
+    /// </summary>
+    [System.Serializable]
+    public struct ProjectileHitInfo
+    {
+        public Collider collider;
+        public Vector3 point;
+        public Vector3 normal;
+        public Transform transform;
+        public Rigidbody rigidbody;
+        
+        public ProjectileHitInfo(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
+        {
+            collider = hitCollider;
+            point = hitPoint;
+            normal = hitNormal;
+            transform = hitCollider != null ? hitCollider.transform : null;
+            rigidbody = hitCollider != null ? hitCollider.GetComponent<Rigidbody>() : null;
+        }
+    }
+
+    /// <summary>
     /// 投射物抽象基类
     /// 定义所有投射物的通用行为和接口
     /// </summary>
@@ -17,7 +40,7 @@ namespace DWHITE.Weapons
         /// <summary>
         /// 投射物命中事件
         /// </summary>
-        public static event Action<ProjectileBase, RaycastHit> OnProjectileHit;
+        public static event Action<ProjectileBase, ProjectileHitInfo> OnProjectileHit;
         
         /// <summary>
         /// 投射物销毁事件
@@ -36,9 +59,10 @@ namespace DWHITE.Weapons
         /// <summary>
         /// 触发投射物命中事件
         /// </summary>
-        protected virtual void TriggerProjectileHit(RaycastHit hit)
+        protected virtual void TriggerProjectileHit(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
         {
-            OnProjectileHit?.Invoke(this, hit);
+            ProjectileHitInfo hitInfo = new ProjectileHitInfo(hitCollider, hitPoint, hitNormal);
+            OnProjectileHit?.Invoke(this, hitInfo);
         }
         
         /// <summary>
@@ -85,14 +109,14 @@ namespace DWHITE.Weapons
 
         [Header("调试选项")]
         [Tooltip("显示调试信息")]
-        [SerializeField] protected bool _showDebugInfo = false;
+        [SerializeField] protected bool _showDebugInfo = true; // 默认开启调试
         [Tooltip("显示轨迹预测线")]
         [SerializeField] protected bool _showTrajectory = false;
         
         #endregion
         
         #region 组件引用
-          protected Rigidbody _rigidbody;
+        protected Rigidbody _rigidbody;
         protected Collider _collider;
         
         #endregion
@@ -284,11 +308,8 @@ namespace DWHITE.Weapons
             Vector3 hitPoint = contact.point;
             Vector3 hitNormal = contact.normal;
             
-            // 创建碰撞信息
-            RaycastHit hit = CreateHitInfo(collision.collider, hitPoint, hitNormal);
-
-            // 处理命中
-            if (ProcessHit(hit))
+            // 直接处理命中，传递具体参数而非创建RaycastHit
+            if (ProcessHit(collision.collider, hitPoint, hitNormal))
             {
                 // 如果命中处理返回 true，则销毁投射物
                 DestroyProjectile();
@@ -320,11 +341,16 @@ namespace DWHITE.Weapons
             // 检查是否应该被忽略
             if (ShouldIgnoreCollision(other)) return;
             
-            // 创建碰撞信息
-            RaycastHit hit = CreateHitInfo(other, transform.position, -transform.forward);
+            // 直接处理命中，传递具体参数
+            bool shouldDestroy = ProcessHit(other, transform.position, -transform.forward);
             
-            // 处理命中
-            ProcessHit(hit);
+            // 触发器通常直接销毁投射物
+            if (shouldDestroy)
+            {
+                DestroyProjectile();
+                PlayImpactEffect(transform.position, -transform.forward);
+                PlayImpactSound();
+            }
         }
         
         /// <summary>
@@ -347,22 +373,13 @@ namespace DWHITE.Weapons
         }
         
         /// <summary>
-        /// 创建命中信息
-        /// </summary>
-        protected virtual RaycastHit CreateHitInfo(Collider collider, Vector3 point, Vector3 normal)
-        {
-            RaycastHit hit = new RaycastHit();
-            // Unity 的 RaycastHit 是结构体，需要通过反射或其他方式设置
-            // 这里简化处理，在子类中可以根据需要扩展
-            return hit;
-        }
-        
-        /// <summary>
         /// 处理命中 (抽象方法，子类必须实现)
         /// </summary>
-        /// <param name="hit">命中信息</param>
+        /// <param name="hitCollider">命中的碰撞体</param>
+        /// <param name="hitPoint">命中点</param>
+        /// <param name="hitNormal">命中法线</param>
         /// <returns>是否应该销毁投射物</returns>
-        protected abstract bool ProcessHit(RaycastHit hit);
+        protected abstract bool ProcessHit(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal);
         
         #endregion
         
@@ -478,19 +495,45 @@ namespace DWHITE.Weapons
         /// </summary>
         public virtual void DestroyProjectile()
         {
-            if (_isDestroyed) return;
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] ===== 开始销毁投射物 =====");
+            
+            if (_isDestroyed) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物-销毁] 已经销毁过，直接返回");
+                return;
+            }
+
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] 投射物名称: {gameObject.name}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] 当前位置: {transform.position}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] 存在时间: {Time.time - _spawnTime:F2}秒");
 
             _isDestroyed = true;
 
             // 触发销毁事件
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] 触发销毁事件...");
+            
             TriggerProjectileDestroyed();
 
             // 子类销毁逻辑
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] 执行子类销毁逻辑...");
+            
             OnDestroy();
 
             // 网络销毁
             if (photonView != null && photonView.IsMine)
             {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物-销毁] 网络投射物，执行PhotonNetwork销毁...");
+                
                 // 安全销毁：先检查PhotonView是否仍然有效
                 if (photonView.ViewID != 0)
                 {
@@ -499,30 +542,47 @@ namespace DWHITE.Weapons
                         // 添加额外检查，确保对象仍在PhotonNetwork的管理中
                         if (PhotonNetwork.GetPhotonView(photonView.ViewID) != null)
                         {
+                            if (_showDebugInfo)
+                                Debug.Log($"[投射物-销毁] 通过PhotonNetwork.Destroy销毁");
+                            
                             PhotonNetwork.Destroy(gameObject);
                         }
                         else
                         {
-                            Debug.LogWarning($"[投射物] PhotonView {photonView.ViewID} 不在网络列表中，执行本地销毁");
+                            if (_showDebugInfo)
+                                Debug.LogWarning($"[投射物-销毁] PhotonView {photonView.ViewID} 不在网络列表中，执行本地销毁");
                             Destroy(gameObject);
                         }
                     }
                     catch (System.Exception e)
                     {
-                        Debug.LogWarning($"[投射物] 网络销毁失败，改为本地销毁: {e.Message}");
+                        if (_showDebugInfo)
+                            Debug.LogWarning($"[投射物-销毁] 网络销毁失败，改为本地销毁: {e.Message}");
                         Destroy(gameObject);
                     }
                 }
                 else
                 {
-                    // PhotonView已经无效，直接本地销毁
+                    if (_showDebugInfo)
+                        Debug.LogWarning($"[投射物-销毁] PhotonView已经无效，直接本地销毁");
                     Destroy(gameObject);
                 }
             }
-            else
+            else if (photonView != null && !photonView.IsMine)
             {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物-销毁] 非拥有者的网络投射物，执行本地销毁");
                 Destroy(gameObject);
             }
+            else
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物-销毁] 本地投射物，执行本地销毁");
+                Destroy(gameObject);
+            }
+            
+            if (_showDebugInfo)
+                Debug.Log($"[投射物-销毁] ===== 投射物销毁完成 =====");
         }
         
         /// <summary>
@@ -808,25 +868,26 @@ namespace DWHITE.Weapons
         /// <returns>是否成功应用伤害</returns>
         protected virtual bool ApplyDamageToTarget(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal, bool isHeadshot = false)
         {
-            // 网络同步检查：只有投射物的拥有者才能造成伤害，避免重复伤害
-            if (photonView != null && !photonView.IsMine)
-            {
-                if (_showDebugInfo)
-                    Debug.Log($"[投射物] 非拥有者，跳过伤害处理: PhotonView.IsMine = {photonView.IsMine}");
-                return false;
-            }
+            if (_showDebugInfo)
+                Debug.Log($"[投射物] ApplyDamageToTarget开始 - 目标: {hitCollider.name}");
 
             // 查找目标的IDamageable组件
             DWHITE.IDamageable damageable = hitCollider.GetComponent<DWHITE.IDamageable>();
             if (damageable == null)
             {
                 damageable = hitCollider.GetComponentInParent<DWHITE.IDamageable>();
+                if (_showDebugInfo)
+                    Debug.Log($"[投射物] 在子对象上未找到IDamageable，尝试在父对象查找: {(damageable != null ? "找到" : "未找到")}");
+            }
+            else if (_showDebugInfo)
+            {
+                Debug.Log($"[投射物] 在目标对象上找到IDamageable组件");
             }
 
             if (damageable == null)
             {
                 if (_showDebugInfo)
-                    Debug.Log($"[投射物] 目标 {hitCollider.name} 不具有IDamageable接口");
+                    Debug.Log($"[投射物] 目标 {hitCollider.name} 不具有IDamageable接口，无法造成伤害");
                 return false;
             }
 
@@ -837,49 +898,33 @@ namespace DWHITE.Weapons
                 return false;
             }
 
+            if (_showDebugInfo)
+                Debug.Log($"[投射物] 目标存活检查通过，当前生命值: {damageable.GetCurrentHealth():F1}/{damageable.GetMaxHealth():F1}");
+
             // 计算最终伤害（考虑爆头等因素）
             float finalDamage = _damage;
             if (isHeadshot && _sourceWeapon?.WeaponData?.CanHeadshot == true)
             {
                 finalDamage *= _sourceWeapon.WeaponData.HeadshotMultiplier;
-            }
-
-            // 使用DamageSystem统一处理伤害
-            if (DamageSystem.Instance != null)
-            {
-                // 创建伤害信息
-                DamageInfo damageInfo = new DamageInfo
-                {
-                    damage = finalDamage,
-                    damageType = DamageType.Projectile,
-                    source = _sourcePlayer,
-                    weapon = _sourceWeapon,
-                    projectile = this,
-                    hitPoint = hitPoint,
-                    hitDirection = Velocity.normalized,
-                    hitNormal = hitNormal,
-                    isHeadshot = isHeadshot,
-                    distance = Vector3.Distance(hitPoint, transform.position)
-                };
-
-                // 通过DamageSystem应用伤害
-                DamageSystem.ApplyDamage(damageable, damageInfo);
-
                 if (_showDebugInfo)
-                    Debug.Log($"[投射物] 通过DamageSystem对 {hitCollider.name} 造成 {finalDamage:F1} 伤害 (爆头: {isHeadshot})");
-                
-                return true;
+                    Debug.Log($"[投射物] 爆头伤害计算: {_damage} × {_sourceWeapon.WeaponData.HeadshotMultiplier} = {finalDamage}");
             }
-            else
+
+            // 直接调用IDamageable接口，本地处理伤害
+            float healthBefore = damageable.GetCurrentHealth();
+            damageable.TakeDamage(finalDamage, hitPoint, Velocity.normalized);
+            float healthAfter = damageable.GetCurrentHealth();
+            
+            if (_showDebugInfo)
             {
-                // 回退到直接调用IDamageable接口
-                damageable.TakeDamage(finalDamage, hitPoint, Velocity.normalized);
-                
-                if (_showDebugInfo)
-                    Debug.Log($"[投射物] 直接对 {hitCollider.name} 造成 {finalDamage:F1} 伤害 (爆头: {isHeadshot})");
-                
-                return true;
+                Debug.Log($"[投射物] 本地伤害处理对 {hitCollider.name}:");
+                Debug.Log($"  - 预期伤害: {finalDamage:F1}");
+                Debug.Log($"  - 生命值变化: {healthBefore:F1} → {healthAfter:F1}");
+                Debug.Log($"  - 实际伤害: {(healthBefore - healthAfter):F1}");
+                Debug.Log($"  - 爆头: {isHeadshot}");
             }
+            
+            return true;
         }
 
         /// <summary>

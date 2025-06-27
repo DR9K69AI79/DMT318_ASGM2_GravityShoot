@@ -216,28 +216,14 @@ namespace DWHITE.Weapons
         /// 创建投射物
         /// </summary>
         protected virtual void CreateProjectile(Vector3 position, Vector3 velocity, Vector3 direction)
-        {            if (_showDebugInfo)
+        {
+            if (_showDebugInfo)
             {
                 Debug.Log($"[投射武器] CreateProjectile 开始执行");
                 Debug.Log($"[投射武器] 投射物预制件: {(ProjectilePrefab != null ? ProjectilePrefab.name : "NULL")}");
                 Debug.Log($"[投射武器] 生成位置: {position}");
                 Debug.Log($"[投射武器] 速度: {velocity}");
                 Debug.Log($"[投射武器] 方向: {direction}");
-                Debug.Log($"[投射武器] 网络同步: {_weaponData?.SyncProjectiles}");
-                Debug.Log($"[投射武器] PhotonView存在: {photonView != null}");
-                Debug.Log($"[投射武器] 是我的PhotonView: {photonView?.IsMine}");
-            }
-
-            // 网络投射物限制检查
-            if (_weaponData.SyncProjectiles && photonView != null && photonView.IsMine)
-            {
-                int currentNetworkProjectiles = CountPlayerNetworkProjectiles();
-                if (currentNetworkProjectiles >= _maxNetworkProjectilesPerPlayer)
-                {
-                    if (_showDebugInfo)
-                        Debug.LogWarning($"[投射武器] 达到网络投射物限制 ({currentNetworkProjectiles}/{_maxNetworkProjectilesPerPlayer})，跳过创建");
-                    return;
-                }
             }
             
             GameObject projectileObj = null;
@@ -248,7 +234,9 @@ namespace DWHITE.Weapons
                 if (_weaponData.UseProjectileSettings)
                 {
                     if (_showDebugInfo)
-                        Debug.Log("[投射武器] 使用ProjectileSettings创建投射物");                    // 使用新的ProjectileSettings方法
+                        Debug.Log("[投射武器] 使用ProjectileSettings创建投射物");
+                    
+                    // 使用新的ProjectileSettings方法
                     projectileObj = ProjectileManager.Instance.SpawnProjectile(
                         ProjectilePrefab,
                         position,
@@ -257,7 +245,7 @@ namespace DWHITE.Weapons
                         _weaponData.ProjectileSettings,
                         this, // 来源武器
                         gameObject, // 来源玩家
-                        _weaponData.SyncProjectiles // 是否使用网络同步
+                        true // 启用网络同步
                     );
                 }
                 else
@@ -274,7 +262,7 @@ namespace DWHITE.Weapons
                         _weaponData.Damage,
                         this, // 来源武器
                         gameObject, // 来源玩家
-                        _weaponData.SyncProjectiles // 是否使用网络同步
+                        true // 启用网络同步
                     );
                 }
 
@@ -300,7 +288,8 @@ namespace DWHITE.Weapons
                     
                     if (_showDebugInfo)
                         Debug.Log("[投射武器] 投射物额外配置完成");
-                }                else
+                }
+                else
                 {
                     Debug.LogError($"[投射武器] 投射物预制件 {ProjectilePrefab.name} 缺少 ProjectileBase 组件");
                 }
@@ -454,28 +443,6 @@ namespace DWHITE.Weapons
             }
         }
         
-        /// <summary>
-        /// 计算当前玩家的网络投射物数量
-        /// </summary>
-        protected virtual int CountPlayerNetworkProjectiles()
-        {
-            if (photonView == null || !photonView.IsMine) return 0;
-            
-            int count = 0;
-            ProjectileBase[] allProjectiles = FindObjectsOfType<ProjectileBase>();
-            
-            foreach (var projectile in allProjectiles)
-            {
-                if (projectile.photonView != null && 
-                    projectile.photonView.Owner == photonView.Owner && 
-                    !projectile.IsDestroyed)
-                {
-                    count++;
-                }
-            }
-            
-            return count;
-        }
         
         #endregion
         

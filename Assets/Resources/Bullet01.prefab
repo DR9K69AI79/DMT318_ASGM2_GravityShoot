@@ -147,18 +147,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5bdcf5d815f7f754bb3f534c15157ae9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _syncPosition: 1
-  _syncRotation: 1
-  _syncVelocity: 1
-  _useInterpolation: 1
-  _sendRate: 30
-  _ownershipTransfer: 1
   _networkCullingDistance: 50
-  _enableClientPrediction: 0
-  _predictionTolerance: 1
-  _correctionSpeed: 10
+  _ownershipTransfer: 1
   _showDebugInfo: 0
-  _showNetworkGizmos: 0
 --- !u!1 &6431940274526525205
 GameObject:
   m_ObjectHideFlags: 0

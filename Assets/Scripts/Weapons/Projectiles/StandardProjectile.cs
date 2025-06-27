@@ -8,7 +8,7 @@ namespace DWHITE.Weapons
     /// 标准投射物实现
     /// 通用的投射物行为，适用于大多数武器
     /// </summary>
-    public class StandardProjectile : ProjectileBase, IPunInstantiateMagicCallback
+    public class StandardProjectile : ProjectileBase
     {
         #region 配置
         
@@ -40,24 +40,9 @@ namespace DWHITE.Weapons
         {
             base.Start();
 
-            // 如果是网络生成的投射物，从初始化数据中获取参数
-            if (photonView != null && photonView.InstantiationData != null)
+            if (_showDebugInfo)
             {
-                if (_showDebugInfo)
-                    Debug.Log($"[标准投射物] 开始网络配置，所有者: {photonView.Owner?.NickName}, IsMine: {photonView.IsMine}");
-
-                ConfigureFromNetworkData(photonView.InstantiationData);
-
-                // 启用网络同步组件的调试信息
-                var networkSync = GetComponent<ProjectileNetworkSync>();
-                if (networkSync != null && _showDebugInfo)
-                {
-                    networkSync.EnableDebugInfo(true);
-                }
-            }
-            else if (_showDebugInfo)
-            {
-                Debug.Log("[标准投射物] 本地投射物，无网络数据");
+                Debug.Log($"[标准投射物] 初始化完成 - 是否网络对象: {(photonView != null)}, 所有者: {(photonView?.Owner?.NickName ?? "本地")}");
             }
         }
         
@@ -66,20 +51,9 @@ namespace DWHITE.Weapons
         #region 网络初始化
         
         /// <summary>
-        /// Photon 网络实例化回调
+        /// 从网络数据配置投射物（仅供ProjectileNetworkSync调用）
         /// </summary>
-        public void OnPhotonInstantiate(PhotonMessageInfo info)
-        {
-            if (info.photonView.InstantiationData != null)
-            {
-                ConfigureFromNetworkData(info.photonView.InstantiationData);
-            }
-        }
-
-        /// <summary>
-        /// 从网络数据配置投射物
-        /// </summary>
-        private void ConfigureFromNetworkData(object[] data)
+        public void ConfigureFromNetworkData(object[] data)
         {
             try
             {
@@ -274,19 +248,45 @@ namespace DWHITE.Weapons
           /// <summary>
         /// 处理命中
         /// </summary>
-        protected override bool ProcessHit(RaycastHit hit)
+        protected override bool ProcessHit(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
         {
-            if (_hasHit && !_penetrateTargets) return true;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] ===== 开始处理碰撞 =====");
             
-            Collider hitCollider = hit.collider;
-            if (hitCollider == null) return false;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 命中目标: {hitCollider.name}");
             
-            // 记录命中位置
-            Vector3 hitPoint = hit.point != Vector3.zero ? hit.point : transform.position;
-            Vector3 hitNormal = hit.normal != Vector3.zero ? hit.normal : -transform.forward;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 碰撞点: {hitPoint}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 法线: {hitNormal}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 已命中状态: {_hasHit}, 可穿透: {_penetrateTargets}");
+            
+            if (_hasHit && !_penetrateTargets) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-碰撞] 已命中且不可穿透，直接销毁");
+                return true;
+            }
+            
+            if (hitCollider == null) 
+            {
+                if (_showDebugInfo)
+                    Debug.LogError($"[标准投射物-碰撞] hitCollider为空，返回false");
+                return false;
+            }
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 开始处理伤害逻辑");
             
             // 处理伤害 - 使用基类的统一伤害处理方法
             bool shouldDestroy = ProcessDamage(hitCollider, hitPoint, hitNormal);
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-碰撞] 伤害处理结果: shouldDestroy = {shouldDestroy}");
             
             // 播放撞击效果
             PlayImpactEffect(hitPoint, hitNormal);
@@ -295,6 +295,9 @@ namespace DWHITE.Weapons
             // 处理爆炸
             if (_explodeOnImpact && !_hasExploded)
             {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-碰撞] 触发爆炸逻辑，延迟: {_explosionDelay}秒");
+                
                 if (_explosionDelay > 0f)
                 {
                     Invoke(nameof(Explode), _explosionDelay);
@@ -304,15 +307,24 @@ namespace DWHITE.Weapons
                     Explode();
                 }
             }
+            else if (_explodeOnImpact && _hasExploded)
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-碰撞] 已经爆炸过，跳过爆炸逻辑");
+            }
             
             // 触发命中事件（在ProjectileBase中处理）
-            TriggerProjectileHit(hit); // 由基类处理事件触发
+            TriggerProjectileHit(hitCollider, hitPoint, hitNormal); // 由基类处理事件触发
             
             // 标记已命中
             _hasHit = true;
             
             if (_showDebugInfo)
-                Debug.Log($"[标准投射物] 命中 {hitCollider.name}，应该销毁: {shouldDestroy}");
+            {
+                Debug.Log($"[标准投射物-碰撞] 命中处理完成");
+                Debug.Log($"[标准投射物-碰撞] 最终销毁决定: {shouldDestroy}");
+                Debug.Log($"[标准投射物-碰撞] ===== 碰撞处理结束 =====");
+            }
             
             return shouldDestroy;
         }
@@ -321,35 +333,125 @@ namespace DWHITE.Weapons
         /// </summary>
         private bool ProcessDamage(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
         {
-            if (!_damageOnTouch) return true;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] ===== 开始伤害处理 =====");
             
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 目标: {hitCollider.name}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 目标标签: {hitCollider.tag}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 目标层级: {hitCollider.gameObject.layer}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 伤害开关: {_damageOnTouch}");
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 投射物伤害值: {_damage}");
+
+            if (!_damageOnTouch) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] _damageOnTouch = false，跳过伤害处理");
+                return true;
+            }
+
             // 检查是否为可伤害目标
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 检查目标是否符合伤害条件...");
+            
             bool isDamageable = IsTargetDamageable(hitCollider);
-            if (!isDamageable) return true;
-            
+            if (!isDamageable) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] ❌ 目标 {hitCollider.name} 不符合伤害条件 (标签: {hitCollider.tag}, 层级: {hitCollider.gameObject.layer})");
+                return true;
+            }
+            else
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] ✅ 目标符合伤害条件");
+            }
+
             // 检查是否可以造成伤害
-            if (!CanDamageTarget(hitCollider)) return true;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 检查目标是否可以被伤害...");
             
+            if (!CanDamageTarget(hitCollider)) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] ❌ 目标 {hitCollider.name} 无法被伤害 (没有IDamageable或已死亡)");
+                return true;
+            }
+            else
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] ✅ 目标可以被伤害");
+            }
+
             // 检查爆头
-            bool isHeadshot = IsHeadshot(hitCollider, hitPoint);
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 检查是否爆头...");
             
+            bool isHeadshot = IsHeadshot(hitCollider, hitPoint);
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 爆头检测结果: {isHeadshot}");
+
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[标准投射物-伤害] ===== 准备应用伤害 =====");
+                Debug.Log($"[标准投射物-伤害] 目标: {hitCollider.name}");
+                Debug.Log($"[标准投射物-伤害] 基础伤害: {_damage}");
+                Debug.Log($"[标准投射物-伤害] 是否爆头: {isHeadshot}");
+                Debug.Log($"[标准投射物-伤害] 命中点: {hitPoint}");
+                Debug.Log($"[标准投射物-伤害] 法线: {hitNormal}");
+                Debug.Log($"[标准投射物-伤害] 来源武器: {(_sourceWeapon?.WeaponData?.WeaponName ?? "Unknown")}");
+                Debug.Log($"[标准投射物-伤害] 来源玩家: {(_sourcePlayer?.name ?? "Unknown")}");
+            }
+
             // 使用基类的统一伤害处理方法
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] 调用ApplyDamageToTarget...");
+            
             bool damageDealt = ApplyDamageToTarget(hitCollider, hitPoint, hitNormal, isHeadshot);
             
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-伤害] ApplyDamageToTarget返回结果: {(damageDealt ? "✅ 成功" : "❌ 失败")}");
+
             // 处理穿透
             if (_penetrateTargets && damageDealt)
             {
                 _penetrationCount++;
                 
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] 穿透逻辑 - 穿透计数: {_penetrationCount}/{_maxPenetrations}");
+                
                 if (_penetrationCount >= _maxPenetrations)
                 {
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物-伤害] 达到最大穿透次数，销毁投射物");
                     return true; // 达到最大穿透次数，销毁投射物
                 }
                 
                 // 继续穿透，不销毁投射物
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] 继续穿透，投射物不销毁");
                 return false;
             }
-            
+            else if (_penetrateTargets && !damageDealt)
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-伤害] 穿透武器但伤害失败，仍然销毁投射物");
+            }
+
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[标准投射物-伤害] 伤害处理完成，返回true（销毁投射物）");
+                Debug.Log($"[标准投射物-伤害] ===== 伤害处理结束 =====");
+            }
+
             return true; // 默认情况下销毁投射物
         }
         
@@ -377,84 +479,150 @@ namespace DWHITE.Weapons
         #region 爆炸系统
 
         /// <summary>
-        /// 爆炸处理 - 逐步迁移到DamageSystem
+        /// 爆炸处理 - 简化为本地直接处理
         /// </summary>
         private void Explode()
         {
-            if (_hasExploded) return;
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-爆炸] ===== 开始爆炸处理 =====");
+            
+            if (_hasExploded) 
+            {
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-爆炸] 已经爆炸过，直接返回");
+                return;
+            }
+            
             _hasExploded = true;
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-爆炸] 爆炸位置: {transform.position}");
 
             // 获取爆炸参数
             float explosionRadius = _sourceWeapon?.WeaponData?.ExplosionRadius ?? 0f;
             float explosionDamage = _sourceWeapon?.WeaponData?.ExplosionDamage ?? 0f;
 
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[标准投射物-爆炸] 爆炸半径: {explosionRadius}");
+                Debug.Log($"[标准投射物-爆炸] 爆炸伤害: {explosionDamage}");
+                Debug.Log($"[标准投射物-爆炸] 伤害层级: {_damageableLayers}");
+            }
+
             if (explosionRadius <= 0f || explosionDamage <= 0f)
             {
                 if (_showDebugInfo)
-                    Debug.Log("[标准投射物] 爆炸参数无效，跳过爆炸");
+                    Debug.Log("[标准投射物-爆炸] ❌ 爆炸参数无效，跳过爆炸");
                 return;
             }
 
-            if (_showDebugInfo)
-                Debug.Log($"[标准投射物] 爆炸: 半径={explosionRadius}, 伤害={explosionDamage}");
-
-            // TODO: 当DamageSystem完全集成后，使用这个方法：
-            DamageSystem.ApplyExplosionDamage(transform.position, explosionRadius, explosionDamage, _sourcePlayer, _damageableLayers, _sourceWeapon);
-
-            // 当前使用本地爆炸处理逻辑
+            // 本地爆炸处理逻辑
             Collider[] targets = Physics.OverlapSphere(transform.position, explosionRadius, _damageableLayers);
+            
+            if (_showDebugInfo)
+                Debug.Log($"[标准投射物-爆炸] 检测到 {targets.Length} 个潜在目标");
 
+            int damageCount = 0;
             foreach (Collider target in targets)
             {
-                if (ShouldIgnoreCollision(target)) continue;
+                if (_showDebugInfo)
+                    Debug.Log($"[标准投射物-爆炸] 检查目标: {target.name}");
+                
+                if (ShouldIgnoreCollision(target)) 
+                {
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物-爆炸] 跳过目标 {target.name} (碰撞忽略规则)");
+                    continue;
+                }
 
                 // 计算距离衰减
                 float distance = Vector3.Distance(transform.position, target.transform.position);
                 float damageMultiplier = 1f - (distance / explosionRadius);
                 damageMultiplier = Mathf.Clamp01(damageMultiplier);
-                // 尝试Core接口优先
+                float finalDamage = explosionDamage * damageMultiplier;
+                
+                if (_showDebugInfo)
+                {
+                    Debug.Log($"[标准投射物-爆炸] 目标 {target.name}:");
+                    Debug.Log($"[标准投射物-爆炸]   距离: {distance:F2}");
+                    Debug.Log($"[标准投射物-爆炸]   伤害倍数: {damageMultiplier:F2}");
+                    Debug.Log($"[标准投射物-爆炸]   最终伤害: {finalDamage:F2}");
+                }
+                
+                // 查找IDamageable组件并直接应用伤害
                 DWHITE.IDamageable coreDamageable = target.GetComponent<DWHITE.IDamageable>();
                 if (coreDamageable == null)
                 {
                     coreDamageable = target.GetComponentInParent<DWHITE.IDamageable>();
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物-爆炸] 在父对象中查找IDamageable: {(coreDamageable != null ? "找到" : "未找到")}");
                 }
 
-                if (coreDamageable != null)
+                if (coreDamageable != null && coreDamageable.IsAlive)
                 {
-                    float finalDamage = explosionDamage * damageMultiplier;
                     Vector3 explosionDirection = (target.transform.position - transform.position).normalized;
-
+                    
+                    if (_showDebugInfo)
+                    {
+                        Debug.Log($"[标准投射物-爆炸] ✅ 对 {target.name} 应用爆炸伤害");
+                        Debug.Log($"[标准投射物-爆炸]   爆炸方向: {explosionDirection}");
+                        Debug.Log($"[标准投射物-爆炸]   目标生命值(应用前): {coreDamageable.GetCurrentHealth():F1}");
+                    }
+                    
                     coreDamageable.TakeDamage(finalDamage, target.transform.position, explosionDirection);
+                    damageCount++;
 
                     if (_showDebugInfo)
-                        Debug.Log($"[标准投射物] 爆炸伤害对 {target.name}: {finalDamage:F1} (距离: {distance:F1})");
+                    {
+                        Debug.Log($"[标准投射物-爆炸] ✅ 爆炸伤害应用完成");
+                        Debug.Log($"[标准投射物-爆炸]   目标生命值(应用后): {coreDamageable.GetCurrentHealth():F1}");
+                        Debug.Log($"[标准投射物-爆炸]   实际伤害: {finalDamage:F1}");
+                    }
+                }
+                else if (coreDamageable != null && !coreDamageable.IsAlive)
+                {
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物-爆炸] ❌ 目标 {target.name} 已死亡，跳过伤害");
                 }
                 else
                 {
+                    if (_showDebugInfo)
+                        Debug.Log($"[标准投射物-爆炸] 尝试本地IDamageable接口...");
+                    
                     // 回退到本地接口
                     IDamageable localDamageable = target.GetComponent<IDamageable>();
                     if (localDamageable == null)
                     {
                         localDamageable = target.GetComponentInParent<IDamageable>();
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物-爆炸] 在父对象中查找本地IDamageable: {(localDamageable != null ? "找到" : "未找到")}");
                     }
+                    
                     if (localDamageable != null)
                     {
-                        // 使用适配器处理爆炸伤害
-                        bool damageApplied = DWHITE.Weapons.DamageableAdapter.ApplyDamage(
-                            target,
-                            explosionDamage * damageMultiplier,
-                            target.transform.position,
-                            (target.transform.position - transform.position).normalized,
-                            _sourcePlayer,
-                            _sourceWeapon,
-                            this
-                        );
+                        // 直接调用IDamageable接口处理爆炸伤害
+                        Vector3 explosionDirection = (target.transform.position - transform.position).normalized;
+                        localDamageable.TakeDamage(finalDamage, target.transform.position, explosionDirection);
+                        damageCount++;
 
-                        if (damageApplied && _showDebugInfo)
-                            Debug.Log($"[标准投射物] 本地爆炸伤害对 {target.name}: {explosionDamage * damageMultiplier:F1}");
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物-爆炸] ✅ 本地爆炸伤害对 {target.name}: {finalDamage:F1}");
+                    }
+                    else
+                    {
+                        if (_showDebugInfo)
+                            Debug.Log($"[标准投射物-爆炸] ❌ 目标 {target.name} 没有IDamageable组件");
                     }
                 }
             }
+            
+            if (_showDebugInfo)
+            {
+                Debug.Log($"[标准投射物-爆炸] 爆炸处理完成");
+                Debug.Log($"[标准投射物-爆炸] 总共对 {damageCount} 个目标造成伤害");
+                Debug.Log($"[标准投射物-爆炸] ===== 爆炸处理结束 =====");
+            }
+            
             // 播放爆炸效果和音效
             PlayExplosionEffect(transform.position);
             PlayExplosionSound();

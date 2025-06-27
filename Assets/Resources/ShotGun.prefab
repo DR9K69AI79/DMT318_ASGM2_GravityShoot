@@ -155,6 +155,7 @@ GameObject:
   m_Component:
   - component: {fileID: 863233551074710919}
   - component: {fileID: 1750538963419144134}
+  - component: {fileID: 7458630858675646600}
   m_Layer: 0
   m_Name: ShotGun
   m_TagString: Untagged
@@ -196,8 +197,6 @@ MonoBehaviour:
   _muzzlePoint: {fileID: 2576903061028367417}
   _muzzleFxPoint: {fileID: 2090311685271531244}
   _showDebugInfo: 1
-  _ProjectilePrefab: {fileID: 2416525086415560961, guid: 5e34540942e0cf3479fe6da5f4db383b,
-    type: 3}
   _inheritPlayerVelocity: 0
   _inheritVelocityFactor: 0.5
   _spawnOffset: {x: 0, y: 0, z: 0}
@@ -228,3 +227,25 @@ MonoBehaviour:
     m_RotationOrder: 4
   _maxNetworkProjectilesPerPlayer: 200
   _projectileSpamCheckInterval: 0.1
+--- !u!114 &7458630858675646600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8914372817198877388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa584fbee541324448dd18d8409c7a41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ObservedComponentsFoldoutOpen: 1
+  Group: 0
+  prefixField: -1
+  Synchronization: 3
+  OwnershipTransfer: 0
+  observableSearch: 2
+  ObservedComponents: []
+  sceneViewId: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0

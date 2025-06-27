@@ -133,21 +133,23 @@ namespace DWHITE.Weapons
             {
                 finalDamage *= _weaponData.HeadshotMultiplier;
             }
-              // 使用DamageableAdapter统一处理伤害
-            bool damageApplied = DamageableAdapter.ApplyDamage(
-                hit.collider,
-                finalDamage,
-                hit.point,
-                -hit.normal,
-                gameObject, // 使用武器GameObject作为来源
-                this,
-                null // 射线武器没有投射物
-            );
-            
-            if (damageApplied && _showDebugInfo)
+            // 直接调用IDamageable接口处理伤害
+            DWHITE.IDamageable damageable = hit.collider.GetComponent<DWHITE.IDamageable>();
+            if (damageable == null)
             {
-                Debug.Log($"[射线武器] 造成伤害: {finalDamage} (爆头: {isHeadshot})");
-            }            else if (!damageApplied && _showDebugInfo)
+                damageable = hit.collider.GetComponentInParent<DWHITE.IDamageable>();
+            }
+            
+            if (damageable != null && damageable.IsAlive)
+            {
+                damageable.TakeDamage(finalDamage, hit.point, -hit.normal);
+                
+                if (_showDebugInfo)
+                {
+                    Debug.Log($"[射线武器] 造成伤害: {finalDamage} (爆头: {isHeadshot})");
+                }
+            }
+            else if (_showDebugInfo)
             {
                 Debug.Log($"[射线武器] {hit.collider.name} 不是可伤害目标");
             }

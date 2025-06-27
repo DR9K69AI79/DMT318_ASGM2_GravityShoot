@@ -104,7 +104,7 @@ namespace DWHITE.UI
         
         #region 事件处理
         
-        private void OnProjectileHit(ProjectileBase projectile, RaycastHit hit)
+        private void OnProjectileHit(ProjectileBase projectile, ProjectileHitInfo hitInfo)
         {
             // 检查是否是当前玩家发射的投射物
             if (projectile.transform.root != _statusManager.transform) return;
